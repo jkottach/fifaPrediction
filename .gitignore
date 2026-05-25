@@ -1,0 +1,48 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+api/dist/
+frontend/dist/
+dist/
+build/
+
+# Environment & secrets (templates are tracked)
+.env
+.env.*
+!.env.example
+!**/.env.example
+!frontend/.env.production
+
+# Azurite (local Azure Storage emulator)
+__azurite_db_*
+__blobstorage__/
+__queuestorage__/
+AzuriteConfig
+AzuriteWorkspace/
+local.settings.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# Vite / tooling cache
+.vite/
+.eslintcache
+*.tsbuildinfo
+
+# Misc
+.cache/
+tmp/
+temp/
