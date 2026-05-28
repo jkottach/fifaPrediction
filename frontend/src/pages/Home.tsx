@@ -59,11 +59,8 @@ const Home: React.FC = () => {
             </span>
           </div>
 
-          <h1 className="mb-4 font-display font-extrabold leading-tight tracking-tight text-white">
-            <span className="block text-sm font-semibold text-emerald-400 mb-2">
-              CyberShelter presents
-            </span>
-            <span className="block text-[1.75rem]">Kanhans Worldcup 26</span>
+          <h1 className="mb-4 font-display text-[1.75rem] font-extrabold leading-tight tracking-tight text-white">
+            Mandrake Worldcup 26
           </h1>
 
           <p className="mb-8 max-w-sm text-[15px] font-medium leading-relaxed text-slate-300">
@@ -128,7 +125,7 @@ const Home: React.FC = () => {
 
       <footer className="border-t border-slate-200 px-5 pb-10 pt-6">
         <p className="text-center text-[11px] font-medium text-slate-400">
-          CyberShelter presents Kanhans Worldcup 26
+          Mandrake Worldcup 26
         </p>
       </footer>
     </div>

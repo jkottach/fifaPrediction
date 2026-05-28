@@ -1,4 +1,4 @@
-# Kanhans FIFA 26 Predictor
+# Mandrake FIFA 26 Predictor
 
 Match prediction app: submit scores, earn points, view leaderboards.
 

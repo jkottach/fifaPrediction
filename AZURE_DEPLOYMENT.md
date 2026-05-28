@@ -58,7 +58,7 @@ https://blue-plant-0ba785610.7.azurestaticapps.net
 http://localhost:3000
 ```
 
-Use your **FIFA** OAuth client (e.g. “Kanhans fifa app”). No `/.auth/login/google/callback` needed for this flow.
+Use your **FIFA** OAuth client (e.g. “Mandrake fifa app”). No `/.auth/login/google/callback` needed for this flow.
 
 ---
 

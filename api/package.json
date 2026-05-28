@@ -1,5 +1,5 @@
 {
-  "name": "kanhans-fifa26-api",
+  "name": "fifa-prediction-api",
   "version": "1.0.0",
   "description": "Fifa26 API — Express + MongoDB, Azure Functions for production",
   "main": "dist/index.js",

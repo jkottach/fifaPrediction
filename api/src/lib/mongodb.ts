@@ -8,11 +8,21 @@ const MATCHES_COLLECTION = 'matches';
 let client: MongoClient | null = null;
 let database: Db | null = null;
 
+function getMongoDbName(): string {
+  const dbName = process.env.MONGODB_DB?.trim();
+  if (!dbName) {
+    throw new Error(
+      'MONGODB_DB is required. Set it in api/.env or Azure application settings.'
+    );
+  }
+  return dbName;
+}
+
 export async function connectMongo(): Promise<Db> {
   if (database) return database;
 
   const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
-  const dbName = process.env.MONGODB_DB || 'kanhans_fifa26';
+  const dbName = getMongoDbName();
 
   client = new MongoClient(uri, {
     serverSelectionTimeoutMS: 15_000,
@@ -64,7 +74,7 @@ export async function pingMongo(): Promise<{ ok: boolean; db: string; error?: st
   } catch (err) {
     return {
       ok: false,
-      db: process.env.MONGODB_DB || 'kanhans_fifa26',
+      db: process.env.MONGODB_DB?.trim() ?? 'unknown',
       error: err instanceof Error ? err.message : String(err),
     };
   }
