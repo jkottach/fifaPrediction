@@ -6,8 +6,8 @@
 | API | **Azure Functions** (linked) | `api/` |
 | Sign-in | **Google button in app** → `POST /api/auth/google` | `frontend/.env.production` |
 
-SWA URL example: `https://blue-plant-0ba785610.7.azurestaticapps.net`  
-API calls: `https://blue-plant-0ba785610.7.azurestaticapps.net/api/...`
+SWA URL (Mandrake): `https://ambitious-stone-0e23c2000.7.azurestaticapps.net`  
+API calls: `https://ambitious-stone-0e23c2000.7.azurestaticapps.net/api/...`
 
 ---
 
@@ -23,7 +23,7 @@ API calls: `https://blue-plant-0ba785610.7.azurestaticapps.net/api/...`
 | `JWT_EXPIRE` | `7d` |
 | `GOOGLE_CLIENT_ID` | Same Web client as `VITE_GOOGLE_CLIENT_ID` in `frontend/.env.production` |
 | `NODE_ENV` | `production` |
-| `FRONTEND_URL` | `https://blue-plant-0ba785610.7.azurestaticapps.net` |
+| `FRONTEND_URL` | `https://ambitious-stone-0e23c2000.7.azurestaticapps.net` |
 | `RATE_LIMIT_WINDOW_MS` | `900000` |
 | `RATE_LIMIT_MAX_REQUESTS` | `1000` |
 
@@ -33,7 +33,7 @@ Template: `api/.env.example`
 
 ### Verify API
 
-`https://blue-plant-0ba785610.7.azurestaticapps.net/api/health` → `status: "ok"`, `mongo.ok: true`
+`https://ambitious-stone-0e23c2000.7.azurestaticapps.net/api/health` → `status: "ok"`, `mongo.ok: true`
 
 ---
 
@@ -54,9 +54,11 @@ Optional: turn off **Custom authentication** entirely so Portal does not overrid
 **Authorized JavaScript origins:**
 
 ```
-https://blue-plant-0ba785610.7.azurestaticapps.net
+https://ambitious-stone-0e23c2000.7.azurestaticapps.net
 http://localhost:3000
 ```
+
+**Important:** `frontend/.env.production` is **committed** and baked into every Azure build. It must use the same `VITE_GOOGLE_CLIENT_ID` as `api/.env` / Azure `GOOGLE_CLIENT_ID` (not an old project’s client).
 
 Use your **FIFA** OAuth client (e.g. “Mandrake fifa app”). No `/.auth/login/google/callback` needed for this flow.
 
