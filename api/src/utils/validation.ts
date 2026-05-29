@@ -52,6 +52,9 @@ export const schemas = {
       .items(Joi.string().trim().uppercase().length(3))
       .length(4)
       .required(),
+    groupChampions: Joi.object()
+      .pattern(Joi.string().trim().uppercase().max(3), Joi.string().trim().uppercase().length(3))
+      .default({}),
   }),
 
   match: Joi.object({

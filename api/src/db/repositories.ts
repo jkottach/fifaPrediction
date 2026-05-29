@@ -2,6 +2,7 @@ import { ObjectId, Filter } from 'mongodb';
 import { getUsersCollection, getTeamsCollection, getMatchesCollection, toObjectId } from '../lib/mongodb';
 import type {
   EmbeddedPrediction,
+  GroupStageGroup,
   MatchDocument,
   TeamDocument,
   TournamentBracketPrediction,
@@ -146,7 +147,10 @@ export async function getEarliestMatchKickoff(): Promise<Date | null> {
 
 export async function upsertTournamentPrediction(
   userId: string,
-  data: Pick<TournamentBracketPrediction, 'champion' | 'finalists' | 'semifinalists'>
+  data: Pick<
+    TournamentBracketPrediction,
+    'champion' | 'finalists' | 'semifinalists' | 'groupChampions'
+  >
 ): Promise<TournamentBracketPrediction | null> {
   const user = await findUserById(userId);
   if (!user) return null;
@@ -156,6 +160,7 @@ export async function upsertTournamentPrediction(
     champion: data.champion,
     finalists: data.finalists,
     semifinalists: data.semifinalists,
+    groupChampions: data.groupChampions,
     points: user.tournamentPrediction?.points ?? 0,
     submittedTime: user.tournamentPrediction?.submittedTime ?? now,
     updatedAt: now,
@@ -256,6 +261,32 @@ export async function findTeamsByIds(teamIds: string[]): Promise<TeamDocument[]>
 }
 
 // ── Matches (`matches` collection) ──────────────────────────────────────────
+
+/** Groups A–L (etc.) with nation `teamId`s derived from group-stage fixtures. */
+export async function listGroupStageGroups(): Promise<GroupStageGroup[]> {
+  const matches = await getMatchesCollection()
+    .find({ group: { $exists: true, $nin: [null, ''] } })
+    .project({ group: 1, team1: 1, team2: 1 })
+    .toArray();
+
+  const byGroup = new Map<string, Set<string>>();
+
+  for (const m of matches) {
+    const group = m.group?.trim().toUpperCase();
+    if (!group) continue;
+    if (!byGroup.has(group)) byGroup.set(group, new Set());
+    const ids = byGroup.get(group)!;
+    if (isPickableNationTeamId(m.team1)) ids.add(m.team1);
+    if (isPickableNationTeamId(m.team2)) ids.add(m.team2);
+  }
+
+  return [...byGroup.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([group, teamIds]) => ({
+      group,
+      teamIds: [...teamIds].sort(),
+    }));
+}
 
 export async function findMatchById(matchId: string): Promise<MatchDocument | null> {
   const oid = toObjectId(matchId);

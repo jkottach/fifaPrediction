@@ -105,6 +105,7 @@ class ApiService {
     champion: string;
     finalists: [string, string];
     semifinalists: [string, string, string, string];
+    groupChampions?: Record<string, string>;
   }) {
     return this.client.post('/tournament-predictions', data);
   }

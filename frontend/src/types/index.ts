@@ -49,10 +49,23 @@ export interface TournamentTeamPick {
   countryLogo?: string | null;
 }
 
+export interface GroupStageGroupInfo {
+  group: string;
+  teams: TournamentTeamPick[];
+}
+
+export interface GroupChampionPick {
+  group: string;
+  teamId: string;
+  teamName: string;
+  countryLogo?: string | null;
+}
+
 export interface TournamentPrediction {
   champion: TournamentTeamPick;
   finalists: TournamentTeamPick[];
   semifinalists: TournamentTeamPick[];
+  groupChampions?: GroupChampionPick[];
   points?: number;
   submittedTime?: string;
   updatedAt?: string;

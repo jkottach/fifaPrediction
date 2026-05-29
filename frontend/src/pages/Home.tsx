@@ -1,5 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import {
+  MATCH_POINTS,
+  TOURNAMENT_GROUP_COUNT,
+  TOURNAMENT_POINTS,
+  maxTournamentPoints,
+} from '../constants/points';
 import { useAuth } from '../hooks/useAuth';
 import { HERO_BG, HERO_GRID_STYLE } from '../theme';
 
@@ -99,7 +105,8 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      <section className="px-5 pb-6 pt-6">
+      <section className="px-5 pt-6 pb-6">
+        <h2 className="font-display text-lg font-bold text-slate-900 mb-3">Get started</h2>
         <div className="space-y-3">
           {steps.map((step) => (
             <article
@@ -120,6 +127,91 @@ const Home: React.FC = () => {
               </div>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="px-5 pb-6">
+        <h2 className="font-display text-lg font-bold text-slate-900 mb-3">How points work</h2>
+        <div className="space-y-3">
+          <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="font-display text-[15px] font-bold text-slate-900 mb-2">
+              Match score predictions
+            </h3>
+            <p className="text-[13px] leading-relaxed text-slate-600 mb-3">
+              For each match, enter the full-time score before the deadline. Points add up when the
+              final result is known:
+            </p>
+            <ul className="space-y-1.5 text-[13px] text-slate-700">
+              <li className="flex justify-between gap-3">
+                <span>Correct result (win / draw / loss)</span>
+                <span className="font-semibold text-emerald-700 shrink-0">
+                  +{MATCH_POINTS.correctResult}
+                </span>
+              </li>
+              <li className="flex justify-between gap-3">
+                <span>Exact Team 1 score</span>
+                <span className="font-semibold text-emerald-700 shrink-0">
+                  +{MATCH_POINTS.correctTeam1Score}
+                </span>
+              </li>
+              <li className="flex justify-between gap-3">
+                <span>Exact Team 2 score</span>
+                <span className="font-semibold text-emerald-700 shrink-0">
+                  +{MATCH_POINTS.correctTeam2Score}
+                </span>
+              </li>
+              <li className="flex justify-between gap-3">
+                <span>Correct goal difference</span>
+                <span className="font-semibold text-emerald-700 shrink-0">
+                  +{MATCH_POINTS.correctGoalDifference}
+                </span>
+              </li>
+            </ul>
+            <p className="mt-3 text-[12px] text-slate-500">
+              Up to {MATCH_POINTS.maxPerMatch} points per match if you get everything right.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="font-display text-[15px] font-bold text-slate-900 mb-2">
+              Tournament predictions
+            </h3>
+            <p className="text-[13px] leading-relaxed text-slate-600 mb-3">
+              On your dashboard, submit group winners and your knockout bracket once before the
+              tournament deadline. Points apply when official results are in:
+            </p>
+            <ul className="space-y-1.5 text-[13px] text-slate-700">
+              <li className="flex justify-between gap-3">
+                <span>Each correct group winner</span>
+                <span className="font-semibold text-emerald-700 shrink-0">
+                  +{TOURNAMENT_POINTS.groupChampion}
+                </span>
+              </li>
+              <li className="flex justify-between gap-3">
+                <span>Each correct semifinalist</span>
+                <span className="font-semibold text-emerald-700 shrink-0">
+                  +{TOURNAMENT_POINTS.semifinalist}
+                </span>
+              </li>
+              <li className="flex justify-between gap-3">
+                <span>Each correct finalist</span>
+                <span className="font-semibold text-emerald-700 shrink-0">
+                  +{TOURNAMENT_POINTS.finalist}
+                </span>
+              </li>
+              <li className="flex justify-between gap-3">
+                <span>Correct tournament champion</span>
+                <span className="font-semibold text-emerald-700 shrink-0">
+                  +{TOURNAMENT_POINTS.champion}
+                </span>
+              </li>
+            </ul>
+            <p className="mt-3 text-[12px] text-slate-500">
+              {TOURNAMENT_GROUP_COUNT} groups, 4 semifinalists, 2 finalists, 1 champion — up to{' '}
+              {maxTournamentPoints()} tournament points. Leaderboard totals include match and
+              tournament points together.
+            </p>
+          </article>
         </div>
       </section>
 
