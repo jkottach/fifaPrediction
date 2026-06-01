@@ -3,11 +3,6 @@ import { format } from 'date-fns';
 import { apiService } from '../services/apiService';
 import { GroupStageGroupInfo, Team, TournamentPrediction } from '../types';
 import {
-  TOURNAMENT_GROUP_COUNT,
-  TOURNAMENT_POINTS,
-  maxTournamentPoints,
-} from '../constants/points';
-import {
   predictionCardBg,
   predictionCardLabel,
   predictionCardPitchStyle,
@@ -366,12 +361,6 @@ const TournamentPredictions: React.FC = () => {
         <p className="text-white/70 text-xs leading-relaxed">
           Pick each group winner, then four semifinalists, two finalists, and your champion before
           kickoff.
-        </p>
-        <p className="mt-2 text-white/50 text-[10px] leading-relaxed">
-          Points when results are final: {TOURNAMENT_POINTS.groupChampion} per group winner (
-          {TOURNAMENT_GROUP_COUNT} groups), {TOURNAMENT_POINTS.semifinalist} per semifinalist,{' '}
-          {TOURNAMENT_POINTS.finalist} per finalist, {TOURNAMENT_POINTS.champion} for champion — up
-          to {maxTournamentPoints()} pts.
         </p>
         {deadline && (
           <p className="mt-1.5 text-white/40 text-[10px] uppercase tracking-widest">

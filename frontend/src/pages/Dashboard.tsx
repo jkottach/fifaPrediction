@@ -138,7 +138,7 @@ const Dashboard: React.FC = () => {
 
     return [...openForPrediction]
       .sort((a, b) => new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime())
-      .slice(0, 5);
+      .slice(0, 24);
   }, [matches]);
 
   const rankDisplay = myRank.rank === '-' ? '–' : `#${myRank.rank}`;
