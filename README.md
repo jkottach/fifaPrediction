@@ -1,4 +1,4 @@
-# Mandrake FIFA 26 Predictor
+# FCC Worldcup 26 Predictor
 
 Match prediction app: submit scores, earn points, view leaderboards.
 
@@ -45,7 +45,7 @@ MongoDB collections: `users`, `teams`, `matches`.
 
 See **[AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md)** for Static Web App settings, CI/CD, and troubleshooting.
 
-Push to `dev` deploys via `.github/workflows/azure-static-web-apps-blue-plant-0ba785610.yml`.
+Push to `fcc` deploys via `.github/workflows/azure-static-web-apps-ambitious-stone-0e23c2000.yml`.
 
 ## Environment
 

@@ -113,7 +113,7 @@ const Login: React.FC = () => {
   }
 
   return (
-    <AuthCard title="Sign in" subtitle="Use Google to join the prediction league">
+    <AuthCard title="Sign in to FCC Worldcup 26" subtitle="Use Google to join the prediction league">
       {error && <div className={alertError}>{error}</div>}
 
       <div className="flex flex-col items-center gap-4">

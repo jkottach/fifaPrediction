@@ -52,7 +52,7 @@ const Register: React.FC = () => {
   };
 
   return (
-    <AuthCard title="Join Mandrake Worldcup 26" subtitle="Create your account to start predicting">
+    <AuthCard title="Join FCC Worldcup 26" subtitle="Create your account to start predicting">
       {error && <div className={alertError}>{error}</div>}
 
       <form onSubmit={handleSubmit} className="space-y-4">

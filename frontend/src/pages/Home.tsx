@@ -61,12 +61,12 @@ const Home: React.FC = () => {
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
             <span className="text-[11px] font-semibold uppercase tracking-widest text-white">
-              Official prediction league
+              Official FCC prediction league
             </span>
           </div>
 
           <h1 className="mb-4 font-display text-[1.75rem] font-extrabold leading-tight tracking-tight text-white">
-            Mandrake Worldcup 26
+            FCC Worldcup 26
           </h1>
 
           <p className="mb-8 max-w-sm text-[15px] font-medium leading-relaxed text-slate-300">
@@ -217,7 +217,7 @@ const Home: React.FC = () => {
 
       <footer className="border-t border-slate-200 px-5 pb-10 pt-6">
         <p className="text-center text-[11px] font-medium text-slate-400">
-          Mandrake Worldcup 26
+          FCC Worldcup 26
         </p>
       </footer>
     </div>

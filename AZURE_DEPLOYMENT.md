@@ -6,7 +6,7 @@
 | API | **Azure Functions** (linked) | `api/` |
 | Sign-in | **Google button in app** → `POST /api/auth/google` | `frontend/.env.production` |
 
-SWA URL (Mandrake): `https://ambitious-stone-0e23c2000.7.azurestaticapps.net`  
+SWA URL (FCC): `https://ambitious-stone-0e23c2000.7.azurestaticapps.net`  
 API calls: `https://ambitious-stone-0e23c2000.7.azurestaticapps.net/api/...`
 
 ---
@@ -60,7 +60,7 @@ http://localhost:3000
 
 **Important:** `frontend/.env.production` is **committed** and baked into every Azure build. It must use the same `VITE_GOOGLE_CLIENT_ID` as `api/.env` / Azure `GOOGLE_CLIENT_ID` (not an old project’s client).
 
-Use your **FIFA** OAuth client (e.g. “Mandrake fifa app”). No `/.auth/login/google/callback` needed for this flow.
+Use your **FCC** OAuth client (e.g. “FCC fifa app”). No `/.auth/login/google/callback` needed for this flow.
 
 ---
 
@@ -85,8 +85,8 @@ cd api && npm run seed:mongo
 
 ## 6. CI/CD
 
-Workflow: `.github/workflows/azure-static-web-apps-blue-plant-0ba785610.yml`  
-Secret: `AZURE_STATIC_WEB_APPS_API_TOKEN_BLUE_PLANT_0BA785610`
+Workflow: `.github/workflows/azure-static-web-apps-ambitious-stone-0e23c2000.yml`  
+Secret: `AZURE_STATIC_WEB_APPS_API_TOKEN_AMBITIOUS_STONE_0E23C2000`
 
 ---
 
