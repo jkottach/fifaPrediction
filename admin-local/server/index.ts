@@ -1,13 +1,19 @@
 /**
  * Standalone local admin API — does not use the main Kanhans API.
- * Connects to the same MongoDB and runs scoring + leaderboard updates.
+ * Connects to one or more MongoDB databases (tenants) and runs scoring + leaderboard updates.
  */
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import express from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
-import { MongoClient, ObjectId, type Db, type Collection } from 'mongodb';
+import { ObjectId, type Db, type Collection } from 'mongodb';
+import {
+  getDbForTenant,
+  getTenantCatalog,
+  getTenantDefinition,
+  resolveTenantId,
+} from './tenants.js';
 
 const adminRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 dotenv.config({ path: path.join(adminRoot, '.env') });
@@ -63,31 +69,17 @@ interface MatchDocument {
   updatedAt: Date;
 }
 
-// ── MongoDB ──────────────────────────────────────────────────────────────────
+type TenantRequest = Request & { tenantId: string; db: Db };
 
-let db: Db;
-
-async function connectMongo(): Promise<Db> {
-  const uri = process.env.MONGODB_URI;
-  if (!uri?.trim()) {
-    throw new Error('MONGODB_URI is required in admin-local/.env');
-  }
-  const dbName = process.env.MONGODB_DB || 'fifaPrediction';
-  const client = new MongoClient(uri);
-  await client.connect();
-  console.log(`✓ Admin server connected to MongoDB (${dbName})`);
-  return client.db(dbName);
-}
-
-function users(): Collection<UserDocument> {
+function users(db: Db): Collection<UserDocument> {
   return db.collection<UserDocument>('users');
 }
 
-function matches(): Collection<MatchDocument> {
+function matches(db: Db): Collection<MatchDocument> {
   return db.collection<MatchDocument>('matches');
 }
 
-function teams(): Collection<TeamDocument> {
+function teams(db: Db): Collection<TeamDocument> {
   return db.collection<TeamDocument>('teams');
 }
 
@@ -101,6 +93,25 @@ function toObjectId(id: string): ObjectId | null {
 
 function sumPredictionPoints(predictions: { points?: number }[]): number {
   return predictions.reduce((sum, p) => sum + (p.points ?? 0), 0);
+}
+
+function tenantFromRequest(req: Request): string {
+  const header = req.header('x-tenant-id');
+  const query = typeof req.query.tenant === 'string' ? req.query.tenant : undefined;
+  return resolveTenantId(header || query);
+}
+
+async function tenantMiddleware(req: Request, res: Response, next: NextFunction) {
+  try {
+    const tenantId = tenantFromRequest(req);
+    const db = await getDbForTenant(tenantId);
+    (req as TenantRequest).tenantId = tenantId;
+    (req as TenantRequest).db = db;
+    next();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Invalid tenant';
+    res.status(400).json({ error: message });
+  }
 }
 
 // ── Match formatting ───────────────────────────────────────────────────────────
@@ -130,11 +141,16 @@ function formatMatchForApi(match: MatchDocument, teamById: Map<string, TeamDocum
   };
 }
 
-async function listMatchesEnriched(status: string | undefined, page: number, limit: number) {
+async function listMatchesEnriched(
+  db: Db,
+  status: string | undefined,
+  page: number,
+  limit: number
+) {
   const filter: Record<string, string> = {};
   if (status) filter.status = status;
 
-  const col = matches();
+  const col = matches(db);
   const [raw, total] = await Promise.all([
     col
       .find(filter)
@@ -146,7 +162,7 @@ async function listMatchesEnriched(status: string | undefined, page: number, lim
   ]);
 
   const teamIds = [...new Set(raw.flatMap((m) => [m.team1, m.team2]))];
-  const teamDocs = teamIds.length ? await teams().find({ teamId: { $in: teamIds } }).toArray() : [];
+  const teamDocs = teamIds.length ? await teams(db).find({ teamId: { $in: teamIds } }).toArray() : [];
   const teamById = new Map(teamDocs.map((t) => [t.teamId, t]));
 
   return {
@@ -181,18 +197,23 @@ function calculatePredictionPoints(
   return points;
 }
 
-async function updatePredictionPointsForMatch(userId: string, matchId: string, points: number) {
+async function updatePredictionPointsForMatch(
+  db: Db,
+  userId: string,
+  matchId: string,
+  points: number
+) {
   const oid = toObjectId(userId);
   if (!oid) return;
 
-  const user = await users().findOne({ _id: oid });
+  const user = await users(db).findOne({ _id: oid });
   if (!user) return;
 
   const nextPredictions = user.predictions.map((p) =>
     p.matchId === matchId ? { ...p, points } : p
   );
 
-  await users().updateOne(
+  await users(db).updateOne(
     { _id: oid },
     {
       $set: {
@@ -204,8 +225,13 @@ async function updatePredictionPointsForMatch(userId: string, matchId: string, p
   );
 }
 
-async function processMatchResults(matchId: string, actualTeam1: number, actualTeam2: number) {
-  const withPredictions = await users().find({ 'predictions.matchId': matchId }).toArray();
+async function processMatchResults(
+  db: Db,
+  matchId: string,
+  actualTeam1: number,
+  actualTeam2: number
+) {
+  const withPredictions = await users(db).find({ 'predictions.matchId': matchId }).toArray();
 
   for (const user of withPredictions) {
     const prediction = user.predictions.find((p) => p.matchId === matchId);
@@ -217,15 +243,20 @@ async function processMatchResults(matchId: string, actualTeam1: number, actualT
       actualTeam1,
       actualTeam2
     );
-    await updatePredictionPointsForMatch(user._id.toString(), matchId, points);
+    await updatePredictionPointsForMatch(db, user._id.toString(), matchId, points);
   }
 }
 
-async function finalizeMatchScores(matchId: string, team1Score: number, team2Score: number) {
+async function finalizeMatchScores(
+  db: Db,
+  matchId: string,
+  team1Score: number,
+  team2Score: number
+) {
   const oid = toObjectId(matchId);
   if (!oid) throw new Error('Match not found');
 
-  const result = await matches().findOneAndUpdate(
+  const result = await matches(db).findOneAndUpdate(
     { _id: oid },
     {
       $set: {
@@ -240,7 +271,7 @@ async function finalizeMatchScores(matchId: string, team1Score: number, team2Sco
 
   if (!result) throw new Error('Match not found');
 
-  await processMatchResults(matchId, team1Score, team2Score);
+  await processMatchResults(db, matchId, team1Score, team2Score);
   return result;
 }
 
@@ -254,7 +285,22 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'admin-local' });
 });
 
+app.get('/api/tenants', (_req, res) => {
+  const catalog = getTenantCatalog();
+  res.json({
+    tenants: catalog.tenants.map((t) => ({
+      id: t.id,
+      label: t.label,
+      dbName: t.dbName,
+    })),
+    defaultTenantId: catalog.defaultTenantId || catalog.tenants[0]?.id,
+  });
+});
+
+app.use('/api', tenantMiddleware);
+
 app.get('/api/matches', async (req, res) => {
+  const { db, tenantId } = req as TenantRequest;
   try {
     const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '100'), 10) || 100));
@@ -262,8 +308,9 @@ app.get('/api/matches', async (req, res) => {
       ? req.query.status.trim()
       : undefined;
 
-    const data = await listMatchesEnriched(status, page, limit);
-    res.json(data);
+    const data = await listMatchesEnriched(db, status, page, limit);
+    const tenant = getTenantDefinition(tenantId);
+    res.json({ ...data, tenant: { id: tenant.id, label: tenant.label, dbName: tenant.dbName } });
   } catch (err) {
     console.error('GET /api/matches', err);
     res.status(500).json({ error: 'Failed to fetch matches' });
@@ -271,16 +318,18 @@ app.get('/api/matches', async (req, res) => {
 });
 
 app.get('/api/leaderboard/top', async (req, res) => {
+  const { db, tenantId } = req as TenantRequest;
   try {
     const limit = Math.min(100, parseInt(String(req.query.limit ?? '30'), 10) || 30);
     const activeFilter = { $or: [{ isActive: true }, { isActive: { $exists: false } }] };
 
-    const topUsers = await users()
+    const topUsers = await users(db)
       .find(activeFilter)
       .sort({ totalPoints: -1, updatedAt: 1 })
       .limit(limit)
       .toArray();
 
+    const tenant = getTenantDefinition(tenantId);
     res.json({
       leaderboard: topUsers.map((user, index) => ({
         rank: index + 1,
@@ -291,6 +340,7 @@ app.get('/api/leaderboard/top', async (req, res) => {
         email: user.email ?? '',
       })),
       source: 'admin-local',
+      tenant: { id: tenant.id, label: tenant.label, dbName: tenant.dbName },
     });
   } catch (err) {
     console.error('GET /api/leaderboard/top', err);
@@ -299,20 +349,28 @@ app.get('/api/leaderboard/top', async (req, res) => {
 });
 
 app.post('/api/local-admin/finalize-match', async (req, res) => {
+  const { db, tenantId } = req as TenantRequest;
   try {
     const { matchId, team1Score, team2Score } = req.body ?? {};
     if (!matchId || team1Score === undefined || team2Score === undefined) {
       return res.status(400).json({ error: 'matchId, team1Score, and team2Score are required' });
     }
 
-    const updated = await finalizeMatchScores(String(matchId), Number(team1Score), Number(team2Score));
+    const updated = await finalizeMatchScores(
+      db,
+      String(matchId),
+      Number(team1Score),
+      Number(team2Score)
+    );
     const teamIds = [updated.team1, updated.team2];
-    const teamDocs = await teams().find({ teamId: { $in: teamIds } }).toArray();
+    const teamDocs = await teams(db).find({ teamId: { $in: teamIds } }).toArray();
     const teamById = new Map(teamDocs.map((t) => [t.teamId, t]));
+    const tenant = getTenantDefinition(tenantId);
 
     res.json({
       message: 'Match finalized and points calculated successfully',
       match: formatMatchForApi(updated, teamById),
+      tenant: { id: tenant.id, label: tenant.label, dbName: tenant.dbName },
     });
   } catch (err) {
     console.error('POST /api/local-admin/finalize-match', err);
@@ -322,7 +380,10 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
 });
 
 async function main() {
-  db = await connectMongo();
+  const catalog = getTenantCatalog();
+  console.log(
+    `Admin tenants: ${catalog.tenants.map((t) => `${t.label} (${t.dbName})`).join(', ')}`
+  );
   const server = app.listen(PORT, () => {
     console.log(`✓ Admin API listening on http://localhost:${PORT}`);
     console.log(`  UI: npm run dev:client → http://localhost:3001 (proxies /api here)`);

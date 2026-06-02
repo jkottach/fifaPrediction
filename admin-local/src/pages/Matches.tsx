@@ -1,7 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import AdminMatchCard from '../components/AdminMatchCard';
-import { getAllMatches, getTopLeaderboard } from '../api';
-import type { Match, MatchStatusFilter } from '../types';
+import TenantSelector from '../components/TenantSelector';
+import {
+  getAllMatches,
+  getTenants,
+  getTopLeaderboard,
+  restoreTenantFromStorage,
+  setActiveTenantId,
+} from '../api';
+import type { Match, MatchStatusFilter, Tenant } from '../types';
 
 const FILTERS: { id: MatchStatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -11,20 +18,45 @@ const FILTERS: { id: MatchStatusFilter; label: string }[] = [
 ];
 
 const Matches: React.FC = () => {
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState('');
+  const [activeTenant, setActiveTenant] = useState<Tenant | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [filter, setFilter] = useState<MatchStatusFilter>('all');
   const [loading, setLoading] = useState(true);
+  const [tenantsLoading, setTenantsLoading] = useState(true);
   const [error, setError] = useState('');
   const [leaderboard, setLeaderboard] = useState<
     Array<{ rank: number; name: string; totalPoints: number }>
   >([]);
 
+  useEffect(() => {
+    void (async () => {
+      setTenantsLoading(true);
+      try {
+        const { tenants: list, defaultTenantId } = await getTenants();
+        setTenants(list);
+        const stored = restoreTenantFromStorage();
+        const initial =
+          stored && list.some((t) => t.id === stored) ? stored : defaultTenantId;
+        setSelectedTenantId(initial);
+        setActiveTenantId(initial);
+      } catch {
+        setError('Failed to load app list. Is the admin API running on port 5002?');
+      } finally {
+        setTenantsLoading(false);
+      }
+    })();
+  }, []);
+
   const loadMatches = useCallback(async () => {
+    if (!selectedTenantId) return;
     setLoading(true);
     setError('');
     try {
       const status = filter === 'all' ? undefined : filter;
-      const { matches: list } = await getAllMatches(status, 1, 100);
+      const { matches: list, tenant } = await getAllMatches(status, 1, 100);
+      if (tenant) setActiveTenant(tenant);
       setMatches(
         [...list].sort(
           (a, b) => new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime()
@@ -39,24 +71,37 @@ const Matches: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, selectedTenantId]);
 
   const loadLeaderboard = useCallback(async () => {
+    if (!selectedTenantId) return;
     try {
-      const { leaderboard: top } = await getTopLeaderboard(5);
+      const { leaderboard: top, tenant } = await getTopLeaderboard(5);
+      if (tenant) setActiveTenant(tenant);
       setLeaderboard(top.map((e) => ({ rank: e.rank, name: e.name, totalPoints: e.totalPoints })));
     } catch {
       setLeaderboard([]);
     }
-  }, []);
+  }, [selectedTenantId]);
 
   useEffect(() => {
+    if (!selectedTenantId) return;
     void loadMatches();
-  }, [loadMatches]);
+  }, [loadMatches, selectedTenantId]);
 
   useEffect(() => {
+    if (!selectedTenantId) return;
     void loadLeaderboard();
-  }, [loadLeaderboard]);
+  }, [loadLeaderboard, selectedTenantId]);
+
+  const handleTenantChange = (tenantId: string) => {
+    setSelectedTenantId(tenantId);
+    setActiveTenantId(tenantId);
+    const tenant = tenants.find((t) => t.id === tenantId) ?? null;
+    setActiveTenant(tenant);
+    setMatches([]);
+    setLeaderboard([]);
+  };
 
   const handleFinalized = (updated: Match) => {
     setMatches((prev) => prev.map((m) => (m.matchId === updated.matchId ? updated : m)));
@@ -76,14 +121,35 @@ const Matches: React.FC = () => {
         </p>
         <h1 className="font-display text-2xl font-extrabold">Match results admin</h1>
         <p className="mt-1 text-sm text-slate-300">
-          Enter final scores to calculate prediction points and update the leaderboard.
+          Select an app, enter final scores, and recalculate prediction points for that database.
         </p>
+
+        {tenantsLoading ? (
+          <p className="mt-4 text-xs text-slate-400">Loading apps…</p>
+        ) : (
+          <TenantSelector
+            tenants={tenants}
+            selectedId={selectedTenantId}
+            onChange={handleTenantChange}
+            disabled={loading}
+          />
+        )}
       </header>
 
       <div className="px-5 py-4 max-w-lg mx-auto">
+        {activeTenant && tenants.length > 1 && (
+          <p className="mb-3 text-xs text-slate-500 text-center">
+            Active: <span className="font-semibold text-slate-700">{activeTenant.label}</span>
+            <span className="text-slate-400"> · {activeTenant.dbName}</span>
+          </p>
+        )}
+
         {leaderboard.length > 0 && (
           <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="font-display text-sm font-bold text-slate-900 mb-2">Top 5 leaderboard</h2>
+            <h2 className="font-display text-sm font-bold text-slate-900 mb-2">
+              Top 5 leaderboard
+              {activeTenant ? ` · ${activeTenant.label}` : ''}
+            </h2>
             <ul className="space-y-1">
               {leaderboard.map((e) => (
                 <li key={e.rank} className="flex justify-between text-sm">
@@ -120,7 +186,7 @@ const Matches: React.FC = () => {
           </div>
         )}
 
-        {loading ? (
+        {loading || tenantsLoading || !selectedTenantId ? (
           <p className="text-center text-sm text-slate-600 py-12">Loading matches…</p>
         ) : matches.length === 0 ? (
           <p className="text-center text-sm text-slate-600 py-12">No matches found</p>

@@ -2,8 +2,6 @@
 
 Self-contained: **own UI + own API server**. Does not modify or call the main Kanhans API (`api/` on port 5001).
 
-This folder is gitignored.
-
 ## Setup
 
 1. Copy env from the main API:
@@ -11,25 +9,43 @@ This folder is gitignored.
 ```bash
 cd admin-local
 cp .env.example .env
-# Edit .env — use the same MONGODB_URI and MONGODB_DB as api/.env
+# Edit .env — set MONGODB_URI (usually one cluster for all apps)
 ```
 
-2. Install and run (starts API on **5002** and UI on **3001**):
+2. Configure prediction apps (databases):
+
+```bash
+cp tenants.config.example.json tenants.config.json
+# Edit dbName for Kanhans, FCC, and Mandrake if needed
+```
+
+Each tenant uses the same `MONGODB_URI` and a different `dbName` (same collections in each DB).
+
+3. Install and run (starts API on **5002** and UI on **3001**):
 
 ```bash
 npm install
 npm run dev
 ```
 
-3. Open **http://localhost:3001**
+4. Open **http://localhost:3001** — pick an app at the top, then finalize match scores.
 
 You do **not** need the main API running. Only MongoDB credentials in `.env`.
 
+## Multi-app / multi-database
+
+| Config | Purpose |
+|--------|---------|
+| `tenants.config.json` | List of apps: `id`, `label`, `dbName` (optional `uri` per tenant) |
+| `ADMIN_TENANTS` env | Alternative: `id:dbName:Label` comma-separated |
+| `X-Tenant-Id` header | API selects DB (UI sets this automatically) |
+
 ## What it does
 
-- `GET /api/matches` — list matches from MongoDB
-- `POST /api/local-admin/finalize-match` — set final score, mark completed, recalculate prediction points and `totalPoints`
-- `GET /api/leaderboard/top` — preview top players after scoring
+- `GET /api/tenants` — list configured apps
+- `GET /api/matches` — list matches for selected tenant
+- `POST /api/local-admin/finalize-match` — set final score, mark completed, recalculate prediction points and `totalPoints` **in that tenant’s DB only**
+- `GET /api/leaderboard/top` — preview top players for the selected tenant
 
 ## Scripts
 

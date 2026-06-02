@@ -1,0 +1,20 @@
+{
+  "defaultTenantId": "kanhans",
+  "tenants": [
+    {
+      "id": "kanhans",
+      "label": "Kanhans",
+      "dbName": "wc26Prod"
+    },
+    {
+      "id": "fcc",
+      "label": "FCC",
+      "dbName": "wc26fcc"
+    },
+    {
+      "id": "mandrake",
+      "label": "Mandrake",
+      "dbName": "wcmandrake"
+    }
+  ]
+}

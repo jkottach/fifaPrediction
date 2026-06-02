@@ -20,3 +20,11 @@ export interface Match {
 }
 
 export type MatchStatusFilter = 'all' | 'scheduled' | 'ongoing' | 'completed';
+
+export interface Tenant {
+  id: string;
+  label: string;
+  dbName: string;
+}
+
+export const TENANT_STORAGE_KEY = 'admin-local-tenant-id';
