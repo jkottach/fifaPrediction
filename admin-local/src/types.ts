@@ -25,6 +25,28 @@ export interface Tenant {
   id: string;
   label: string;
   dbName: string;
+  url?: string | null;
 }
 
 export const TENANT_STORAGE_KEY = 'admin-local-tenant-id';
+
+export interface TournamentTeamOption {
+  teamId: string;
+  teamName: string;
+  countryLogo?: string | null;
+}
+
+export interface GroupStageGroupInfo {
+  group: string;
+  teams: TournamentTeamOption[];
+}
+
+export interface TournamentOfficialResults {
+  champion: string;
+  finalists: [string, string];
+  semifinalists: [string, string, string, string];
+  groupChampions: Record<string, string>;
+}
+
+/** Virtual selection: apply scoring to every configured database. */
+export const ALL_TENANT_ID = 'all';

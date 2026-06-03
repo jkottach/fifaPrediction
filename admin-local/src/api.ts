@@ -1,5 +1,10 @@
 import axios from 'axios';
-import type { Match, Tenant } from './types';
+import type {
+  GroupStageGroupInfo,
+  Match,
+  Tenant,
+  TournamentOfficialResults,
+} from './types';
 import { TENANT_STORAGE_KEY } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -33,6 +38,8 @@ export function restoreTenantFromStorage(): string | null {
 export async function getTenants(): Promise<{
   tenants: Tenant[];
   defaultTenantId: string;
+  allTenantId: string;
+  supportsAllTenants: boolean;
 }> {
   const res = await axios.get('/api/tenants');
   return res.data;
@@ -47,13 +54,55 @@ export async function getAllMatches(status?: string, page = 1, limit = 100) {
   };
 }
 
-export async function finalizeMatch(matchId: string, team1Score: number, team2Score: number) {
+export async function finalizeMatch(
+  matchId: string,
+  team1Score: number,
+  team2Score: number,
+  matchTag?: string
+) {
   const res = await client.post('/local-admin/finalize-match', {
     matchId,
     team1Score,
     team2Score,
+    matchTag,
   });
-  return res.data as { message: string; match: Match; tenant?: Tenant };
+  return res.data as {
+    message: string;
+    match: Match;
+    tenant?: Tenant;
+    outcomes?: Array<{
+      tenant: Tenant;
+      ok: boolean;
+      error?: string;
+    }>;
+  };
+}
+
+export async function getTournamentSetup() {
+  const res = await client.get('/tournament/setup');
+  return res.data as {
+    groups: GroupStageGroupInfo[];
+    results: TournamentOfficialResults | null;
+    points: typeof import('./constants/tournamentPoints').TOURNAMENT_POINTS;
+    predictionsCount: number;
+    tenant?: Tenant;
+    previewTenantId?: string;
+  };
+}
+
+export async function applyTournamentResults(body: TournamentOfficialResults) {
+  const res = await client.post('/local-admin/tournament-results', body);
+  return res.data as {
+    message: string;
+    usersUpdated?: number;
+    tenant?: Tenant;
+    outcomes?: Array<{
+      tenant: Tenant;
+      ok: boolean;
+      usersUpdated?: number;
+      error?: string;
+    }>;
+  };
 }
 
 export async function getTopLeaderboard(limit = 10) {

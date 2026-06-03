@@ -44,8 +44,12 @@ You do **not** need the main API running. Only MongoDB credentials in `.env`.
 
 - `GET /api/tenants` — list configured apps
 - `GET /api/matches` — list matches for selected tenant
-- `POST /api/local-admin/finalize-match` — set final score, mark completed, recalculate prediction points and `totalPoints` **in that tenant’s DB only**
+- `POST /api/local-admin/finalize-match` — set final score, mark completed, recalculate match prediction points
+- `GET /api/tournament/setup` — group-stage teams + saved official tournament results
+- `POST /api/local-admin/tournament-results` — save official bracket results and recalculate every user’s `tournamentPrediction.points` and `totalPoints` (match + tournament)
 - `GET /api/leaderboard/top` — preview top players for the selected tenant
+
+Tournament points (same as main app): group winner +3, semifinalist +5, finalist +8, champion +15.
 
 ## Scripts
 

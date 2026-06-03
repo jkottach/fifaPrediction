@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { finalizeMatch } from '../api';
+import { finalizeMatch, getActiveTenantId } from '../api';
+import { ALL_TENANT_ID } from '../types';
 import type { Match } from '../types';
 
 interface AdminMatchCardProps {
@@ -39,12 +40,20 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({ match, onFinalized }) =
     setLoading(true);
 
     try {
-      const { match: updated } = await finalizeMatch(
+      const { match: updated, message, outcomes } = await finalizeMatch(
         match.matchId,
         Number(team1Score),
-        Number(team2Score)
+        Number(team2Score),
+        match.matchTag
       );
-      setSuccess('Scores saved — user points recalculated');
+      const failed = outcomes?.filter((o) => !o.ok) ?? [];
+      if (failed.length > 0) {
+        setSuccess(
+          `${message}. Failed: ${failed.map((f) => f.tenant.label).join(', ')}`
+        );
+      } else {
+        setSuccess(message || 'Scores saved — user points recalculated');
+      }
       onFinalized(updated);
       setTimeout(() => setSuccess(''), 4000);
     } catch (err: unknown) {
@@ -123,9 +132,13 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({ match, onFinalized }) =
       >
         {loading
           ? 'Saving…'
-          : isCompleted
-            ? 'Update result & recalculate points'
-            : 'Submit final result'}
+          : getActiveTenantId() === ALL_TENANT_ID
+            ? isCompleted
+              ? 'Update all databases'
+              : 'Submit to all databases'
+            : isCompleted
+              ? 'Update result & recalculate points'
+              : 'Submit final result'}
       </button>
     </article>
   );

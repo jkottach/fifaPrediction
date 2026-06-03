@@ -5,10 +5,15 @@ import { MongoClient, type Db } from 'mongodb';
 
 const adminRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+/** Virtual tenant: finalize scoring on every configured database. */
+export const ALL_TENANT_ID = 'all';
+
 export interface TenantDefinition {
   id: string;
   label: string;
   dbName: string;
+  /** Optional app URL used by the admin UI. */
+  url?: string;
   /** Optional per-tenant URI; defaults to MONGODB_URI */
   uri?: string;
 }
@@ -78,13 +83,32 @@ export function getTenantCatalog(): TenantsFile {
   return cachedDefinitions;
 }
 
+export function isAllTenantsMode(tenantId: string): boolean {
+  return tenantId === ALL_TENANT_ID;
+}
+
 export function resolveTenantId(requested?: string): string {
   const catalog = getTenantCatalog();
   const id = requested?.trim() || catalog.defaultTenantId || catalog.tenants[0].id;
+  if (id === ALL_TENANT_ID) return ALL_TENANT_ID;
   if (!catalog.tenants.some((t) => t.id === id)) {
     throw new Error(`Unknown tenant "${id}"`);
   }
   return id;
+}
+
+/** Database used for read-only routes when ALL is selected (matches list preview). */
+export function resolveReadTenantId(requested?: string): string {
+  const tenantId = resolveTenantId(requested);
+  if (isAllTenantsMode(tenantId)) {
+    const catalog = getTenantCatalog();
+    return catalog.defaultTenantId || catalog.tenants[0].id;
+  }
+  return tenantId;
+}
+
+export function listConfiguredTenants(): TenantDefinition[] {
+  return getTenantCatalog().tenants;
 }
 
 export function getTenantDefinition(tenantId: string): TenantDefinition {

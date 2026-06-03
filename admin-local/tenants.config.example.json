@@ -4,17 +4,20 @@
     {
       "id": "kanhans",
       "label": "Kanhans",
-      "dbName": "wc26Prod"
+      "dbName": "wc26Prod",
+      "url": "https://wc26.kanhans.com"
     },
     {
       "id": "fcc",
       "label": "FCC",
-      "dbName": "wc26fcc"
+      "dbName": "wc26fcc",
+      "url": "https://red-mud-0c40c5000.7.azurestaticapps.net"
     },
     {
       "id": "mandrake",
       "label": "Mandrake",
-      "dbName": "wcmandrake"
+      "dbName": "wcmandrake",
+      "url": "https://ambitious-stone-0e23c2000.7.azurestaticapps.net"
     }
   ]
 }
