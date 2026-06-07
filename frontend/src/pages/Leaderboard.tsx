@@ -16,7 +16,7 @@ const LeaderboardPage: React.FC = () => {
   const loadLeaderboard = async () => {
     try {
       setLoading(true);
-      const res = await apiService.getTopLeaderboard(30);
+      const res = await apiService.getTopLeaderboard(50);
       setLeaderboard(res.data.leaderboard || []);
     } catch (error) {
       console.error('Failed to load leaderboard:', error);

@@ -26,7 +26,7 @@ function buildLeaderboardEntries(users: Awaited<ReturnType<typeof listUsersByTot
 
 export const getTopLeaderboard = async (req: AuthRequest, res: Response) => {
   try {
-    const { limit = '30' } = req.query;
+    const { limit = '50' } = req.query;
     const limitNum = parseInt(limit as string, 10);
     const users = await listUsersByTotalPoints(limitNum);
     res.json({ leaderboard: buildLeaderboardEntries(users), source: 'mongodb' });
