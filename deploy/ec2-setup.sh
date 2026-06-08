@@ -5,7 +5,7 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/fifaPrediction}"
 REPO_URL="${REPO_URL:-https://github.com/jkottach/fifaPrediction.git}"
-BRANCH="${BRANCH:-mandrake}"
+BRANCH="${BRANCH:-diva}"
 
 echo "==> Installing system packages..."
 sudo dnf update -y

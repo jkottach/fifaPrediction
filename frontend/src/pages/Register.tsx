@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../hooks/useAuth';
 import AuthCard from '../components/AuthCard';
+import PhoneInput from '../components/PhoneInput';
+import { APP_NAME } from '../constants/branding';
+import { formatQatarPhone } from '../utils/phone';
 import { alertError, btnPrimary, input, label, linkAccent } from '../theme';
 
 const Register: React.FC = () => {
@@ -15,7 +18,7 @@ const Register: React.FC = () => {
     lastName: '',
     password: '',
     city: '',
-    phoneNumber: '',
+    phoneLocal: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -30,14 +33,18 @@ const Register: React.FC = () => {
     setError('');
     setLoading(true);
 
-    if (!formData.phoneNumber.trim()) {
+    if (!formData.phoneLocal.trim()) {
       setError('Phone number is required.');
       setLoading(false);
       return;
     }
 
     try {
-      const response = await apiService.register(formData);
+      const { phoneLocal, ...profileFields } = formData;
+      const response = await apiService.register({
+        ...profileFields,
+        phoneNumber: formatQatarPhone(phoneLocal),
+      });
       login(response.data.token, response.data.user);
       navigate('/dashboard');
     } catch (err: unknown) {
@@ -52,7 +59,7 @@ const Register: React.FC = () => {
   };
 
   return (
-    <AuthCard title="Join Mandrake Worldcup 26" subtitle="Create your account to start predicting">
+    <AuthCard title={`Join ${APP_NAME}`} subtitle="Create your account to start predicting">
       {error && <div className={alertError}>{error}</div>}
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -108,23 +115,15 @@ const Register: React.FC = () => {
         </div>
 
         <div>
-          <label className={label}>City</label>
+          <label className={label}>Hometown</label>
           <input type="text" name="city" value={formData.city} onChange={handleChange} className={input} />
         </div>
 
-        <div>
-          <label className={label}>Phone Number</label>
-          <input
-            type="tel"
-            name="phoneNumber"
-            value={formData.phoneNumber}
-            onChange={handleChange}
-            placeholder="+1234567890"
-            className={input}
-            required
-            autoComplete="tel"
-          />
-        </div>
+        <PhoneInput
+          value={formData.phoneLocal}
+          onChange={(phoneLocal) => setFormData((prev) => ({ ...prev, phoneLocal }))}
+          required
+        />
 
         <button type="submit" disabled={loading} className={btnPrimary}>
           {loading ? 'Creating Account...' : 'Register'}

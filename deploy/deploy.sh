@@ -3,7 +3,7 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/fifaPrediction}"
-BRANCH="${BRANCH:-mandrake}"
+BRANCH="${BRANCH:-diva}"
 
 cd "$APP_DIR"
 
@@ -26,8 +26,11 @@ echo "==> Restarting API (PM2)..."
 cd "$APP_DIR/api"
 if pm2 describe fifa-api >/dev/null 2>&1; then
   pm2 restart fifa-api
-else
+elif [ -f ecosystem.config.cjs ]; then
   pm2 start ecosystem.config.cjs
+else
+  echo "WARN: ecosystem.config.cjs missing — use branch 'diva' or: pm2 start dist/server.js --name fifa-api" >&2
+  pm2 start dist/server.js --name fifa-api
 fi
 pm2 save
 

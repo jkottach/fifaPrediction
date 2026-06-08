@@ -7,6 +7,8 @@ import {
   maxTournamentPoints,
 } from '../constants/points';
 import { useAuth } from '../hooks/useAuth';
+import AppLogo from '../components/AppLogo';
+import { APP_NAME } from '../constants/branding';
 import { HERO_BG, HERO_GRID_STYLE } from '../theme';
 
 const steps = [
@@ -65,8 +67,16 @@ const Home: React.FC = () => {
             </span>
           </div>
 
-          <h1 className="mb-4 font-display text-[1.75rem] font-extrabold leading-tight tracking-tight text-white">
-            Mandrake Worldcup 26
+          <div className="mb-4 flex justify-center">
+            <AppLogo
+              showTitle={false}
+              logoClassName="h-24 w-auto object-contain brightness-0 invert"
+              className="flex items-center justify-center"
+            />
+          </div>
+
+          <h1 className="mb-4 font-display text-[1.75rem] font-extrabold leading-tight tracking-tight text-white text-center">
+            {APP_NAME}
           </h1>
 
           <p className="mb-8 max-w-sm text-[15px] font-medium leading-relaxed text-slate-300">
@@ -217,7 +227,7 @@ const Home: React.FC = () => {
 
       <footer className="border-t border-slate-200 px-5 pb-10 pt-6">
         <p className="text-center text-[11px] font-medium text-slate-400">
-          Mandrake Worldcup 26
+          {APP_NAME}
         </p>
       </footer>
     </div>

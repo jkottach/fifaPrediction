@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/apiService';
 import { User } from '../types';
 import PageHero from '../components/PageHero';
+import PhoneInput from '../components/PhoneInput';
+import { formatQatarPhone, stripQatarDialCode } from '../utils/phone';
 import {
   alertError,
   alertSuccess,
@@ -22,7 +24,7 @@ const Profile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
 
   const [formData, setFormData] = useState({
-    phoneNumber: '',
+    phoneLocal: '',
     city: '',
   });
 
@@ -37,7 +39,7 @@ const Profile: React.FC = () => {
       const p = profileRes.data as User;
       setProfile(p);
       setFormData({
-        phoneNumber: p.phoneNumber || '',
+        phoneLocal: stripQatarDialCode(p.phoneNumber || ''),
         city: p.city === 'Not Set' ? '' : p.city || '',
       });
     } catch (err: unknown) {
@@ -57,7 +59,7 @@ const Profile: React.FC = () => {
   };
 
   const handleSaveProfile = async () => {
-    if (!formData.phoneNumber.trim()) {
+    if (!formData.phoneLocal.trim()) {
       setError('Phone number is required.');
       return;
     }
@@ -66,7 +68,10 @@ const Profile: React.FC = () => {
       setEditLoading(true);
       setError('');
       setSuccess('');
-      await apiService.updateProfile(formData);
+      await apiService.updateProfile({
+        city: formData.city,
+        phoneNumber: formatQatarPhone(formData.phoneLocal),
+      });
       setSuccess('Profile updated successfully');
       setIsEditing(false);
       fetchData();
@@ -119,19 +124,14 @@ const Profile: React.FC = () => {
 
             {isEditing ? (
               <div className="space-y-4">
+                <PhoneInput
+                  labelText="Phone"
+                  value={formData.phoneLocal}
+                  onChange={(phoneLocal) => setFormData((prev) => ({ ...prev, phoneLocal }))}
+                  required
+                />
                 <div>
-                  <label className={label}>Phone</label>
-                  <input
-                    type="tel"
-                    name="phoneNumber"
-                    value={formData.phoneNumber}
-                    onChange={handleChange}
-                    className={input}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className={label}>City</label>
+                  <label className={label}>Hometown</label>
                   <input
                     type="text"
                     name="city"
@@ -156,7 +156,7 @@ const Profile: React.FC = () => {
                   <dd className="font-medium text-slate-800">{profile.phoneNumber || '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">City</dt>
+                  <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Hometown</dt>
                   <dd className="font-medium text-slate-800">
                     {profile.city && profile.city !== 'Not Set' ? profile.city : '—'}
                   </dd>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/apiService';
 import { useAzureAuth } from '../services/swaAuth';
+import AppLogo from './AppLogo';
 import { HERO_BG } from '../theme';
 
 const Header: React.FC = () => {
@@ -40,8 +41,11 @@ const Header: React.FC = () => {
     >
       <nav className="px-4 py-3">
         <div className="flex justify-between items-center gap-2">
-          <Link to="/" className="flex items-center gap-2 min-w-0" onClick={closeMenu}>
-            <h1 className="font-display text-base font-bold truncate">🏆 Mandrake Worldcup 26</h1>
+          <Link to="/" className="min-w-0" onClick={closeMenu}>
+            <AppLogo
+              logoClassName="h-8 w-auto object-contain brightness-0 invert"
+              titleClassName="font-display text-sm font-bold truncate text-white"
+            />
           </Link>
 
           <div className="flex items-center gap-2 shrink-0">

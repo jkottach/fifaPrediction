@@ -4,6 +4,8 @@ import { apiService } from '../services/apiService';
 import { useAuth } from '../hooks/useAuth';
 import { useAzureAuth } from '../services/swaAuth';
 import AuthCard from '../components/AuthCard';
+import PhoneInput from '../components/PhoneInput';
+import { formatQatarPhone, stripQatarDialCode } from '../utils/phone';
 import { alertError, btnPrimary, input, label } from '../theme';
 
 const ProfileSetup: React.FC = () => {
@@ -12,7 +14,7 @@ const ProfileSetup: React.FC = () => {
 
   const [formData, setFormData] = useState({
     city: '',
-    phoneNumber: '',
+    phoneLocal: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -25,7 +27,7 @@ const ProfileSetup: React.FC = () => {
     if (user) {
       setFormData({
         city: user.city === 'Not Set' ? '' : user.city || '',
-        phoneNumber: user.phoneNumber || '',
+        phoneLocal: stripQatarDialCode(user.phoneNumber || ''),
       });
     }
   }, [user, navigate]);
@@ -40,20 +42,23 @@ const ProfileSetup: React.FC = () => {
     setError('');
     setLoading(true);
 
-    if (!formData.phoneNumber.trim()) {
+    if (!formData.phoneLocal.trim()) {
       setError('Phone number is required.');
       setLoading(false);
       return;
     }
 
     if (!formData.city.trim()) {
-      setError('City is required.');
+      setError('Hometown is required.');
       setLoading(false);
       return;
     }
 
     try {
-      const response = await apiService.updateProfile(formData);
+      const response = await apiService.updateProfile({
+        city: formData.city,
+        phoneNumber: formatQatarPhone(formData.phoneLocal),
+      });
       if (useAzureAuth) {
         login(response.data.user);
       } else {
@@ -83,24 +88,15 @@ const ProfileSetup: React.FC = () => {
       {error && <div className={alertError}>{error}</div>}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className={label}>
-            Phone Number <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="tel"
-            name="phoneNumber"
-            value={formData.phoneNumber}
-            onChange={handleChange}
-            placeholder="+1234567890"
-            className={input}
-            required
-          />
-        </div>
+        <PhoneInput
+          value={formData.phoneLocal}
+          onChange={(phoneLocal) => setFormData((prev) => ({ ...prev, phoneLocal }))}
+          required
+        />
 
         <div>
           <label className={label}>
-            City <span className="text-red-500">*</span>
+            Hometown <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
