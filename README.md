@@ -6,14 +6,16 @@ Match prediction app: submit scores, earn points, view leaderboards.
 
 | Layer | Tech |
 |-------|------|
-| Frontend | React, TypeScript, Vite, Tailwind — **Azure Static Web Apps** |
-| API | Express, MongoDB — **Azure Functions** (linked to SWA at `/api`) |
+| Frontend | React, TypeScript, Vite, Tailwind — **Nginx** (static) |
+| API | Express, MongoDB — **PM2** on EC2 |
+| Production | **AWS EC2** (Amazon Linux) + **HTTPS** (Let's Encrypt) |
 
 ## Project layout
 
 ```
 frontend/     React app
-api/          Express API + Azure Functions host
+api/          Express API (PM2 in production)
+deploy/       Nginx config, EC2 setup, deploy scripts
 ```
 
 ## Local development
@@ -41,11 +43,17 @@ npm run seed:mongo
 
 MongoDB collections: `users`, `teams`, `matches`.
 
-## Production
+## Production (AWS EC2)
 
-See **[AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md)** for Static Web App settings, CI/CD, and troubleshooting.
+See **[AWS_DEPLOYMENT.md](./AWS_DEPLOYMENT.md)** for EC2 setup, Nginx, HTTPS, PM2, and Google OAuth.
 
-Push to `dev` deploys via `.github/workflows/azure-static-web-apps-blue-plant-0ba785610.yml`.
+No custom domain? Use your Elastic IP with free **sslip.io** (`54-123-45-67.sslip.io`) — see AWS_DEPLOYMENT.md section 1b.
+
+Quick deploy on the server:
+
+```bash
+bash deploy/deploy.sh
+```
 
 ## Environment
 
@@ -53,7 +61,7 @@ Push to `dev` deploys via `.github/workflows/azure-static-web-apps-blue-plant-0b
 |-------|------|
 | Local API | `api/.env` — always loaded from `api/` (not shell cwd) |
 | Local frontend | `frontend/.env` (copy from `frontend/.env.example`) |
-| **Azure API** | Portal → Static Web App → **Environment variables** — see **[AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md)** |
-| **Azure frontend build** | `frontend/.env.production` (committed) |
+| **EC2 API** | `/opt/fifaPrediction/api/.env` (secrets, not in git) |
+| **EC2 frontend build** | `frontend/.env.production` (`VITE_GOOGLE_CLIENT_ID`, `VITE_API_URL=/api`) |
 
-Missing Azure API env vars cause `/api/leaderboard/top` → **500**.
+Missing API env vars cause `/api/leaderboard/top` → **500**.

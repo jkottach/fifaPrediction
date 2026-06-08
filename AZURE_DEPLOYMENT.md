@@ -1,3 +1,8 @@
+# Azure Deployment (legacy)
+
+> **Mandrake production** uses **AWS EC2** — see **[AWS_DEPLOYMENT.md](./AWS_DEPLOYMENT.md)**.  
+> This document is kept for reference only.
+
 # Azure Deployment: Static Web Apps + API Functions
 
 | Layer | Azure service | Folder |
