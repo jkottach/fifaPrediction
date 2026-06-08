@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/apiService';
 import { useAzureAuth } from '../services/swaAuth';
-import AppLogo from './AppLogo';
+import { APP_NAME } from '../constants/branding';
 import { HERO_BG } from '../theme';
 
 const Header: React.FC = () => {
+  const navigate = useNavigate();
   const { isLoggedIn, user, logout, setUser } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const didRefreshProfile = useRef(false);
@@ -34,6 +35,11 @@ const Header: React.FC = () => {
     }
   };
 
+  const goToLogin = () => {
+    closeMenu();
+    navigate('/login');
+  };
+
   return (
     <header
       className="sticky top-0 z-40 text-white shadow-lg"
@@ -41,21 +47,23 @@ const Header: React.FC = () => {
     >
       <nav className="px-4 py-3">
         <div className="flex justify-between items-center gap-2">
-          <Link to="/" className="min-w-0" onClick={closeMenu}>
-            <AppLogo
-              logoClassName="h-8 w-auto object-contain brightness-0 invert"
-              titleClassName="font-display text-sm font-bold truncate text-white"
-            />
+          <Link
+            to="/"
+            className="min-w-0 max-w-[55%] shrink font-display text-sm font-bold truncate text-white"
+            onClick={closeMenu}
+          >
+            {APP_NAME}
           </Link>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="relative z-10 flex items-center gap-2 shrink-0">
             {!isLoggedIn && (
-              <Link
-                to="/login"
-                className="px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 transition min-h-[44px] flex items-center"
+              <button
+                type="button"
+                onClick={goToLogin}
+                className="px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500 hover:bg-emerald-600 transition min-h-[44px] flex items-center text-white"
               >
                 Login
-              </Link>
+              </button>
             )}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -104,7 +112,16 @@ const Header: React.FC = () => {
                   </button>
                 </div>
               </>
-            ) : null}
+            ) : (
+              <>
+                <button type="button" onClick={goToLogin} className={`${navLinkClass} w-full text-left`}>
+                  Login
+                </button>
+                <Link to="/register" className={navLinkClass} onClick={closeMenu}>
+                  Register
+                </Link>
+              </>
+            )}
           </div>
         )}
       </nav>

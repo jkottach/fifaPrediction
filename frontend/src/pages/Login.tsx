@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../hooks/useAuth';
@@ -24,6 +24,21 @@ const Login: React.FC = () => {
 
   const [error, setError] = useState('');
   const [checkingSession, setCheckingSession] = useState(useAzureAuth);
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+  const [googleButtonWidth, setGoogleButtonWidth] = useState(280);
+
+  useEffect(() => {
+    const el = googleButtonRef.current;
+    if (!el) return;
+
+    const updateWidth = () => {
+      setGoogleButtonWidth(Math.max(240, Math.floor(el.offsetWidth)));
+    };
+
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
   useEffect(() => {
     if (searchParams.get('signed_out') === '1' || consumePreventGoogleAutoselect()) {
@@ -129,7 +144,7 @@ const Login: React.FC = () => {
             Continue with Google
           </button>
         ) : googleClientId ? (
-          <div className="w-full flex justify-center" aria-label="Google login button">
+          <div ref={googleButtonRef} className="w-full flex justify-center" aria-label="Google login button">
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
               onError={() => setError('Google sign-in was unsuccessful. Please try again.')}
@@ -137,7 +152,7 @@ const Login: React.FC = () => {
               text="continue_with"
               size="large"
               shape="pill"
-              width="320"
+              width={googleButtonWidth}
               auto_select={false}
             />
           </div>
