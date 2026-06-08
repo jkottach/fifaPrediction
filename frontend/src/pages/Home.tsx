@@ -70,7 +70,8 @@ const Home: React.FC = () => {
           <div className="mb-4 flex justify-center">
             <AppLogo
               showTitle={false}
-              logoClassName="h-24 w-auto object-contain brightness-0 invert"
+              variant="onDark"
+              logoClassName="h-20 w-auto max-w-[200px] object-contain"
               className="flex items-center justify-center"
             />
           </div>
