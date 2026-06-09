@@ -10,6 +10,15 @@ export function formatUserId(user: UserDocument): string {
   return user._id.toString();
 }
 
+/** Leaderboard and public rankings — honors both `isActive` and `status`. */
+export function isUserLeaderboardEligible(
+  user: Pick<UserDocument, 'isActive' | 'status'>
+): boolean {
+  if (user.isActive === false) return false;
+  const status = (user.status ?? 'active').trim().toLowerCase();
+  return status !== 'inactive' && status !== 'suspended';
+}
+
 export function formatMatchId(match: MatchDocument): string {
   return match._id.toString();
 }

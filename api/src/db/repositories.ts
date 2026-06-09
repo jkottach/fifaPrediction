@@ -170,9 +170,13 @@ export async function upsertTournamentPrediction(
   return entry;
 }
 
-/** Active users; legacy docs without `isActive` are included. */
+/** Leaderboard-eligible users; legacy docs without `isActive`/`status` are included. */
 const activeUserFilter: Filter<UserDocument> = {
-  $or: [{ isActive: true }, { isActive: { $exists: false } }],
+  isActive: { $ne: false },
+  $nor: [
+    { status: { $regex: /^inactive$/i } },
+    { status: { $regex: /^suspended$/i } },
+  ],
 };
 
 export async function listUsersByTotalPoints(limit: number): Promise<UserDocument[]> {

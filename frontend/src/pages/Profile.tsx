@@ -169,7 +169,10 @@ const Profile: React.FC = () => {
           <div className="border-t border-slate-100 bg-slate-50 px-5 py-3 text-xs text-slate-500">
             Status:{' '}
             <span className="font-bold uppercase text-emerald-600">
-              {profile.isActive ? 'Active' : 'Inactive'}
+              {(profile.isActive ?? true) &&
+              (profile.status ?? 'active').toLowerCase() === 'active'
+                ? 'Active'
+                : 'Inactive'}
             </span>
           </div>
         </div>

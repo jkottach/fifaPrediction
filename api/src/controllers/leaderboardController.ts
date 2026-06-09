@@ -6,7 +6,7 @@ import {
   findUserById,
   listUsersByTotalPoints,
 } from '../db/repositories';
-import { formatUserId } from '../db/helpers';
+import { formatUserId, isUserLeaderboardEligible } from '../db/helpers';
 
 function buildLeaderboardEntries(users: Awaited<ReturnType<typeof listUsersByTotalPoints>>) {
   return users
@@ -47,8 +47,9 @@ export const getUserStats = async (req: AuthRequest, res: Response) => {
     const user = await findUserById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const ahead = await countUsersAhead(user.totalPoints);
-    const rank = user.totalPoints > 0 ? ahead + 1 : '-';
+    const eligible = isUserLeaderboardEligible(user);
+    const ahead = eligible ? await countUsersAhead(user.totalPoints) : 0;
+    const rank = eligible && user.totalPoints > 0 ? ahead + 1 : '-';
     const stats = { rank, totalPoints: user.totalPoints };
 
     res.json({
