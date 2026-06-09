@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/apiService';
 import { User } from '../types';
 import PageHero from '../components/PageHero';
+import { HOMETOWN_LABEL } from '../constants/branding';
 import PhoneInput from '../components/PhoneInput';
 import { formatQatarPhone, stripQatarDialCode } from '../utils/phone';
 import {
@@ -131,7 +132,7 @@ const Profile: React.FC = () => {
                   required
                 />
                 <div>
-                  <label className={label}>Hometown</label>
+                  <label className={label}>{HOMETOWN_LABEL}</label>
                   <input
                     type="text"
                     name="city"
@@ -156,7 +157,7 @@ const Profile: React.FC = () => {
                   <dd className="font-medium text-slate-800">{profile.phoneNumber || '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Hometown</dt>
+                  <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{HOMETOWN_LABEL}</dt>
                   <dd className="font-medium text-slate-800">
                     {profile.city && profile.city !== 'Not Set' ? profile.city : '—'}
                   </dd>

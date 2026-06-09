@@ -4,7 +4,7 @@ import { apiService } from '../services/apiService';
 import { useAuth } from '../hooks/useAuth';
 import AuthCard from '../components/AuthCard';
 import PhoneInput from '../components/PhoneInput';
-import { APP_NAME } from '../constants/branding';
+import { APP_NAME, HOMETOWN_LABEL } from '../constants/branding';
 import { formatQatarPhone } from '../utils/phone';
 import { alertError, btnPrimary, input, label, linkAccent } from '../theme';
 
@@ -115,7 +115,7 @@ const Register: React.FC = () => {
         </div>
 
         <div>
-          <label className={label}>Hometown</label>
+          <label className={label}>{HOMETOWN_LABEL}</label>
           <input type="text" name="city" value={formData.city} onChange={handleChange} className={input} />
         </div>
 

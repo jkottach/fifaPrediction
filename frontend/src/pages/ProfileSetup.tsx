@@ -6,6 +6,7 @@ import { useAzureAuth } from '../services/swaAuth';
 import AuthCard from '../components/AuthCard';
 import PhoneInput from '../components/PhoneInput';
 import { formatQatarPhone, stripQatarDialCode } from '../utils/phone';
+import { HOMETOWN_LABEL } from '../constants/branding';
 import { alertError, btnPrimary, input, label } from '../theme';
 
 const ProfileSetup: React.FC = () => {
@@ -49,7 +50,7 @@ const ProfileSetup: React.FC = () => {
     }
 
     if (!formData.city.trim()) {
-      setError('Hometown is required.');
+      setError(`${HOMETOWN_LABEL} is required.`);
       setLoading(false);
       return;
     }
@@ -96,7 +97,7 @@ const ProfileSetup: React.FC = () => {
 
         <div>
           <label className={label}>
-            Hometown <span className="text-red-500">*</span>
+            {HOMETOWN_LABEL} <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
