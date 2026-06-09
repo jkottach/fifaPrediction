@@ -5,22 +5,20 @@ import type { GroupChampionsPicks, GroupStageGroup } from '../db/types';
 import {
   findTeamsByIds,
   findUserById,
-  getEarliestMatchKickoff,
   listGroupStageGroups,
   upsertTournamentPrediction,
 } from '../db/repositories';
 
-function parseDeadline(): Date | null {
+/** Default close: end of 18 Jun 2026 (Qatar, UTC+3). Override with TOURNAMENT_PREDICTION_DEADLINE. */
+const DEFAULT_TOURNAMENT_PREDICTION_DEADLINE = '2026-06-18T20:59:59.000Z';
+
+function resolvePredictionDeadline(): Date {
   const env = process.env.TOURNAMENT_PREDICTION_DEADLINE?.trim();
   if (env) {
     const parsed = new Date(env);
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
-  return null;
-}
-
-async function resolvePredictionDeadline(): Promise<Date | null> {
-  return parseDeadline() ?? (await getEarliestMatchKickoff());
+  return new Date(DEFAULT_TOURNAMENT_PREDICTION_DEADLINE);
 }
 
 function uniqueTeamIds(ids: string[]): boolean {
@@ -121,7 +119,7 @@ export const getTournamentPrediction = async (req: AuthRequest, res: Response) =
     const user = await findUserById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const deadline = await resolvePredictionDeadline();
+    const deadline = resolvePredictionDeadline();
     const stored = user.tournamentPrediction;
     const stageGroups = await listGroupStageGroups();
     const groups = await enrichGroupStageForApi(stageGroups);
@@ -188,7 +186,7 @@ export const submitTournamentPrediction = async (req: AuthRequest, res: Response
       groupChampions?: GroupChampionsPicks;
     };
 
-    const deadline = await resolvePredictionDeadline();
+    const deadline = resolvePredictionDeadline();
     if (deadline && new Date() >= deadline) {
       return res.status(400).json({ error: 'Tournament prediction deadline has passed' });
     }
