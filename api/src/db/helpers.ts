@@ -23,11 +23,26 @@ export function formatMatchId(match: MatchDocument): string {
   return match._id.toString();
 }
 
-function toIso(value: Date | string | undefined | null): string | null {
+function toDate(value: unknown): Date | null {
   if (value == null) return null;
-  const d = value instanceof Date ? value : new Date(value);
-  const ms = d.getTime();
-  return Number.isNaN(ms) ? null : d.toISOString();
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'object' && '$date' in (value as object)) {
+    const raw = (value as { $date: string | number }).$date;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+function toIso(value: unknown): string | null {
+  const d = toDate(value);
+  return d ? d.toISOString() : null;
 }
 
 /** Explicit API shape — avoids BSON / spread issues in JSON responses. */

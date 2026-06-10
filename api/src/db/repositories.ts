@@ -310,7 +310,7 @@ export async function listMatches(options: {
   const [matches, total] = await Promise.all([
     col
       .find(filter)
-      .sort({ matchTime: 1 })
+      .sort({ sequence: 1, matchTime: 1 })
       .skip((options.page - 1) * options.limit)
       .limit(options.limit)
       .toArray(),

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Match, Prediction } from '../types';
 import { format } from 'date-fns';
 import { apiService } from '../services/apiService';
+import { getPredictionDeadlineIso, isMatchOpenForPrediction } from '../utils/matchDeadline';
 
 interface MatchCardProps {
   match: Match;
@@ -62,7 +63,8 @@ const CountUnit: React.FC<{ value: number; label: string }> = ({ value, label })
 const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredictionSubmit }) => {
   const isCompleted = match.status === 'completed';
   const isOngoing   = match.status === 'ongoing';
-  const isPredictionOpen = new Date(match.predictionsEndingTime) > new Date();
+  const isPredictionOpen = isMatchOpenForPrediction(match);
+  const predictionDeadlineIso = getPredictionDeadlineIso(match) ?? match.predictionsEndingTime;
 
   const [team1Score, setTeam1Score] = useState<number | ''>('');
   const [team2Score, setTeam2Score] = useState<number | ''>('');
@@ -70,7 +72,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
   const [error, setError]           = useState('');
   const [submitted, setSubmitted]   = useState(false);
 
-  const countdown = useCountdown(match.predictionsEndingTime);
+  const countdown = useCountdown(predictionDeadlineIso ?? match.matchTime);
 
   useEffect(() => {
     if (userPrediction) {
@@ -263,7 +265,9 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
             </div>
           ) : (
             <span className="text-white/40 text-xs font-semibold">
-              {format(new Date(match.predictionsEndingTime), 'MMM dd, HH:mm')}
+              {predictionDeadlineIso
+                ? format(new Date(predictionDeadlineIso), 'MMM dd, h:mm a')
+                : '—'}
             </span>
           )}
         </div>
