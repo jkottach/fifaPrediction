@@ -16,7 +16,7 @@ cp .env.example .env
 
 ```bash
 cp tenants.config.example.json tenants.config.json
-# Edit dbName for Kanhans, FCC, and Mandrake if needed
+# Edit dbName for Kanhans, FCC, Mandrake, DIWA, etc. if needed
 ```
 
 Each tenant uses the same `MONGODB_URI` and a different `dbName` (same collections in each DB).

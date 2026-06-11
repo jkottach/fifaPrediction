@@ -18,6 +18,12 @@
       "label": "Mandrake",
       "dbName": "wcmandrake",
       "url": "https://ambitious-stone-0e23c2000.7.azurestaticapps.net"
+    },
+    {
+      "id": "diwa",
+      "label": "DIWA",
+      "dbName": "wc26Diva",
+      "url": "https://3-236-109-198.sslip.io"
     }
   ]
 }
