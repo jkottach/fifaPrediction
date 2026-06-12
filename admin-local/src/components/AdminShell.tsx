@@ -13,6 +13,7 @@ interface AdminShellProps {
   onTenantChange: (tenantId: string) => void;
   tenantsLoading?: boolean;
   supportsAllTenants?: boolean;
+  onLogout?: () => void;
   children: React.ReactNode;
 }
 
@@ -29,6 +30,7 @@ const AdminShell: React.FC<AdminShellProps> = ({
   onTenantChange,
   tenantsLoading,
   supportsAllTenants,
+  onLogout,
   children,
 }) => {
   const selectedTenant =
@@ -50,9 +52,20 @@ const AdminShell: React.FC<AdminShellProps> = ({
         background: 'linear-gradient(180deg, #0b1220 0%, #111827 45%, #0f172a 100%)',
       }}
     >
-      <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-1">
-        Local only · no auth
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mb-1">
+          PIN protected
+        </p>
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="shrink-0 rounded-lg border border-white/20 px-2.5 py-1 text-[10px] font-semibold text-slate-200 hover:bg-white/10"
+          >
+            Log out
+          </button>
+        )}
+      </div>
       <h1 className="font-display text-2xl font-extrabold">World Cup admin</h1>
       <p className="mt-1 text-sm text-slate-300">
         Match scoring and tournament prediction scoring for each prediction app.

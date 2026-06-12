@@ -29,6 +29,7 @@ export interface Tenant {
 }
 
 export const TENANT_STORAGE_KEY = 'admin-local-tenant-id';
+export const AUTH_STORAGE_KEY = 'admin-local-auth-token';
 
 export interface TournamentTeamOption {
   teamId: string;
@@ -50,3 +51,31 @@ export interface TournamentOfficialResults {
 
 /** Virtual selection: apply scoring to every configured database. */
 export const ALL_TENANT_ID = 'all';
+
+export interface RankedTeamStanding {
+  teamId: string;
+  position: number;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+  points: number;
+}
+
+export interface GroupStandingRow {
+  group: string;
+  complete: boolean;
+  ranked: RankedTeamStanding[];
+}
+
+export interface ResolvedKnockoutMatch {
+  matchId: string;
+  matchTag: string;
+  team1: string;
+  team2: string;
+  team1From?: string;
+  team2From?: string;
+}

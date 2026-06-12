@@ -2,6 +2,7 @@
  * Standalone local admin API — does not use the main Kanhans API.
  * Connects to one or more MongoDB databases (tenants) and runs scoring + leaderboard updates.
  */
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -20,6 +21,14 @@ import {
 } from './tenants.js';
 import { registerTournamentRoutes, sumMatchPoints } from './tournament.js';
 import type { TournamentBracketPrediction } from './tournamentScoring.js';
+import { computeGroupStandings } from './groupStandings.js';
+import { resolveKnockoutTeams, type ResolvedMatchUpdate } from './knockoutResolver.js';
+import {
+  adminAuthMiddleware,
+  loginWithPin,
+  revokeSession,
+  validateSession,
+} from './auth.js';
 
 const adminRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 dotenv.config({ path: path.join(adminRoot, '.env') });
@@ -275,7 +284,7 @@ async function finalizeMatchScores(
   team1Score: number,
   team2Score: number,
   matchTag?: string
-) {
+): Promise<{ match: MatchDocument; resolved: ResolvedMatchUpdate[] }> {
   const existing = await findMatchDocument(db, matchId, matchTag);
   if (!existing) throw new Error('Match not found');
 
@@ -297,7 +306,12 @@ async function finalizeMatchScores(
   if (!result) throw new Error('Match not found');
 
   await processMatchResults(db, resolvedId, team1Score, team2Score);
-  return result;
+  const resolved = await resolveKnockoutTeams(db, matches(db), teams(db));
+  return { match: result, resolved };
+}
+
+async function runKnockoutResolver(db: Db): Promise<ResolvedMatchUpdate[]> {
+  return resolveKnockoutTeams(db, matches(db), teams(db));
 }
 
 // ── Express app ────────────────────────────────────────────────────────────────
@@ -309,6 +323,32 @@ app.use(express.json());
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'admin-local' });
 });
+
+app.post('/api/auth/login', (req, res) => {
+  const result = loginWithPin(req.body?.pin);
+  if (!result.ok) {
+    return res.status(401).json({ error: 'Invalid PIN' });
+  }
+  res.json({ token: result.token });
+});
+
+app.get('/api/auth/session', (req, res) => {
+  const header = req.header('authorization');
+  const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : req.header('x-admin-token');
+  if (!validateSession(token ?? undefined)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  res.json({ authenticated: true });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const header = req.header('authorization');
+  const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : req.header('x-admin-token');
+  revokeSession(token ?? undefined);
+  res.json({ message: 'Logged out' });
+});
+
+app.use('/api', adminAuthMiddleware);
 
 app.get('/api/tenants', (_req, res) => {
   const catalog = getTenantCatalog();
@@ -351,6 +391,89 @@ app.get('/api/matches', async (req, res) => {
   } catch (err) {
     console.error('GET /api/matches', err);
     res.status(500).json({ error: 'Failed to fetch matches' });
+  }
+});
+
+app.get('/api/group-standings', async (req, res) => {
+  const { db, tenantId } = req as TenantRequest;
+  try {
+    const standings = await computeGroupStandings(matches(db));
+    if (isAllTenantsMode(tenantId)) {
+      res.json({
+        standings,
+        tenant: { id: ALL_TENANT_ID, label: 'All', dbName: 'all databases' },
+        previewTenantId: resolveReadTenantId(req.header('x-tenant-id') || undefined),
+      });
+      return;
+    }
+    const tenant = getTenantDefinition(tenantId);
+    res.json({
+      standings,
+      tenant: { id: tenant.id, label: tenant.label, dbName: tenant.dbName },
+    });
+  } catch (err) {
+    console.error('GET /api/group-standings', err);
+    res.status(500).json({ error: 'Failed to fetch group standings' });
+  }
+});
+
+app.post('/api/local-admin/resolve-knockout-teams', async (req, res) => {
+  const { tenantId } = req as TenantRequest;
+  try {
+    if (isAllTenantsMode(tenantId)) {
+      const outcomes: Array<{
+        tenant: { id: string; label: string; dbName: string };
+        ok: boolean;
+        resolved?: ResolvedMatchUpdate[];
+        error?: string;
+      }> = [];
+
+      for (const t of listConfiguredTenants()) {
+        const tdb = await getDbForTenant(t.id);
+        try {
+          const resolved = await runKnockoutResolver(tdb);
+          outcomes.push({
+            tenant: { id: t.id, label: t.label, dbName: t.dbName },
+            ok: true,
+            resolved,
+          });
+        } catch (err) {
+          outcomes.push({
+            tenant: { id: t.id, label: t.label, dbName: t.dbName },
+            ok: false,
+            error: err instanceof Error ? err.message : 'Failed',
+          });
+        }
+      }
+
+      const succeeded = outcomes.filter((o) => o.ok);
+      if (succeeded.length === 0) {
+        return res.status(500).json({ error: 'Failed to resolve on any database', outcomes });
+      }
+
+      return res.json({
+        message: `Knockout teams resolved on ${succeeded.length} of ${outcomes.length} databases`,
+        resolved: succeeded.flatMap((o) => o.resolved ?? []),
+        tenant: { id: ALL_TENANT_ID, label: 'All', dbName: 'all databases' },
+        outcomes,
+      });
+    }
+
+    const { db } = req as TenantRequest;
+    const resolved = await runKnockoutResolver(db);
+    const tenant = getTenantDefinition(tenantId);
+    res.json({
+      message:
+        resolved.length > 0
+          ? `Updated ${resolved.length} knockout match(es)`
+          : 'No knockout matches needed updating',
+      resolved,
+      tenant: { id: tenant.id, label: tenant.label, dbName: tenant.dbName },
+    });
+  } catch (err) {
+    console.error('POST /api/local-admin/resolve-knockout-teams', err);
+    const message = err instanceof Error ? err.message : 'Failed to resolve knockout teams';
+    res.status(500).json({ error: message });
   }
 });
 
@@ -408,11 +531,12 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
       }> = [];
 
       let firstMatch: ReturnType<typeof formatMatchForApi> | null = null;
+      let allResolved: ResolvedMatchUpdate[] = [];
 
       for (const t of listConfiguredTenants()) {
         const tdb = await getDbForTenant(t.id);
         try {
-          const updated = await finalizeMatchScores(
+          const { match: updated, resolved } = await finalizeMatchScores(
             tdb,
             String(matchId),
             scores.team1Score,
@@ -423,6 +547,7 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
           const teamDocs = await teams(tdb).find({ teamId: { $in: teamIds } }).toArray();
           const teamById = new Map(teamDocs.map((team) => [team.teamId, team]));
           if (!firstMatch) firstMatch = formatMatchForApi(updated, teamById);
+          if (resolved.length > 0) allResolved = resolved;
           outcomes.push({
             tenant: { id: t.id, label: t.label, dbName: t.dbName },
             ok: true,
@@ -452,13 +577,14 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
             ? `Match finalized on all ${succeeded.length} databases`
             : `Match finalized on ${succeeded.length} of ${outcomes.length} databases`,
         match: firstMatch,
+        resolved: allResolved,
         tenant: { id: ALL_TENANT_ID, label: 'All', dbName: 'all databases' },
         outcomes,
       });
     }
 
     const { db } = req as TenantRequest;
-    const updated = await finalizeMatchScores(
+    const { match: updated, resolved } = await finalizeMatchScores(
       db,
       String(matchId),
       scores.team1Score,
@@ -473,6 +599,7 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
     res.json({
       message: 'Match finalized and points calculated successfully',
       match: formatMatchForApi(updated, teamById),
+      resolved,
       tenant: { id: tenant.id, label: tenant.label, dbName: tenant.dbName },
     });
   } catch (err) {
@@ -482,14 +609,27 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
   }
 });
 
+const distPath = path.join(adminRoot, 'dist');
+if (process.env.NODE_ENV === 'production' && fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
 async function main() {
   const catalog = getTenantCatalog();
   console.log(
     `Admin tenants: ${catalog.tenants.map((t) => `${t.label} (${t.dbName})`).join(', ')}`
   );
   const server = app.listen(PORT, () => {
-    console.log(`✓ Admin API listening on http://localhost:${PORT}`);
-    console.log(`  UI: npm run dev:client → http://localhost:3001 (proxies /api here)`);
+    console.log(`✓ Admin listening on http://localhost:${PORT}`);
+    if (process.env.NODE_ENV === 'production') {
+      console.log('  Production mode: serving UI from dist/');
+    } else {
+      console.log('  Dev UI: npm run dev:client → http://localhost:3001 (proxies /api here)');
+    }
   });
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {

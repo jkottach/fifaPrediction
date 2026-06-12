@@ -2,14 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { finalizeMatch, getActiveTenantId } from '../api';
 import { ALL_TENANT_ID } from '../types';
-import type { Match } from '../types';
+import type { Match, ResolvedKnockoutMatch } from '../types';
+import { formatResolvedKnockoutMessage, isPlaceholderTeamId } from '../utils/placeholders';
 
 interface AdminMatchCardProps {
   match: Match;
   onFinalized: (updated: Match) => void;
+  onKnockoutResolved?: (resolved: ResolvedKnockoutMatch[]) => void;
 }
 
-const AdminMatchCard: React.FC<AdminMatchCardProps> = ({ match, onFinalized }) => {
+const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
+  match,
+  onFinalized,
+  onKnockoutResolved,
+}) => {
   const [team1Score, setTeam1Score] = useState<string>(
     match.team1Score != null ? String(match.team1Score) : ''
   );
@@ -28,6 +34,8 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({ match, onFinalized }) =
   const t1 = match.team1Info?.teamName ?? match.team1;
   const t2 = match.team2Info?.teamName ?? match.team2;
   const isCompleted = match.status === 'completed';
+  const hasPlaceholders =
+    isPlaceholderTeamId(match.team1) || isPlaceholderTeamId(match.team2);
 
   const handleSubmit = async () => {
     if (team1Score === '' || team2Score === '') {
@@ -40,22 +48,25 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({ match, onFinalized }) =
     setLoading(true);
 
     try {
-      const { match: updated, message, outcomes } = await finalizeMatch(
+      const { match: updated, message, outcomes, resolved } = await finalizeMatch(
         match.matchId,
         Number(team1Score),
         Number(team2Score),
         match.matchTag
       );
       const failed = outcomes?.filter((o) => !o.ok) ?? [];
+      const knockoutMsg = formatResolvedKnockoutMessage(resolved ?? []);
       if (failed.length > 0) {
         setSuccess(
-          `${message}. Failed: ${failed.map((f) => f.tenant.label).join(', ')}`
+          `${message}. Failed: ${failed.map((f) => f.tenant.label).join(', ')}${knockoutMsg ? `. ${knockoutMsg}` : ''}`
         );
       } else {
-        setSuccess(message || 'Scores saved — user points recalculated');
+        const base = message || 'Scores saved — user points recalculated';
+        setSuccess(knockoutMsg ? `${base}. ${knockoutMsg}` : base);
       }
       onFinalized(updated);
-      setTimeout(() => setSuccess(''), 4000);
+      if (resolved && resolved.length > 0) onKnockoutResolved?.(resolved);
+      setTimeout(() => setSuccess(''), 6000);
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'response' in err
@@ -82,17 +93,24 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({ match, onFinalized }) =
             {match.round ? ` · ${match.round}` : ''}
           </p>
         </div>
-        <span
-          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
-            isCompleted
-              ? 'bg-slate-200 text-slate-700'
-              : match.status === 'ongoing'
-                ? 'bg-emerald-100 text-emerald-800'
-                : 'bg-amber-100 text-amber-800'
-          }`}
-        >
-          {match.status}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {hasPlaceholders && (
+            <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-bold text-violet-800">
+              Placeholder
+            </span>
+          )}
+          <span
+            className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${
+              isCompleted
+                ? 'bg-slate-200 text-slate-700'
+                : match.status === 'ongoing'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-amber-100 text-amber-800'
+            }`}
+          >
+            {match.status}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center justify-center gap-3 py-2">

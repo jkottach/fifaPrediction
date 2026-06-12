@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import AdminMatchCard from '../components/AdminMatchCard';
-import { getAllMatches, getTopLeaderboard } from '../api';
+import { getAllMatches, getGroupStandings, getTopLeaderboard, resolveKnockoutTeams } from '../api';
 import { ALL_TENANT_ID } from '../types';
-import type { Match, MatchStatusFilter, Tenant } from '../types';
+import type { GroupStandingRow, Match, MatchStatusFilter, Tenant } from '../types';
+import { formatResolvedKnockoutMessage } from '../utils/placeholders';
 
 const FILTERS: { id: MatchStatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -35,6 +36,10 @@ const Matches: React.FC<MatchesProps> = ({
   const [leaderboard, setLeaderboard] = useState<
     Array<{ rank: number; name: string; totalPoints: number }>
   >([]);
+  const [standings, setStandings] = useState<GroupStandingRow[]>([]);
+  const [standingsOpen, setStandingsOpen] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [resolveMessage, setResolveMessage] = useState('');
 
   const loadMatches = useCallback(async () => {
     if (!selectedTenantId) return;
@@ -72,6 +77,16 @@ const Matches: React.FC<MatchesProps> = ({
     }
   }, [selectedTenantId]);
 
+  const loadStandings = useCallback(async () => {
+    if (!selectedTenantId) return;
+    try {
+      const { standings: rows } = await getGroupStandings();
+      setStandings(rows);
+    } catch {
+      setStandings([]);
+    }
+  }, [selectedTenantId]);
+
   useEffect(() => {
     if (!selectedTenantId) return;
     setMatches([]);
@@ -83,9 +98,40 @@ const Matches: React.FC<MatchesProps> = ({
     void loadLeaderboard();
   }, [loadLeaderboard]);
 
+  useEffect(() => {
+    void loadStandings();
+  }, [loadStandings]);
+
   const handleFinalized = (updated: Match) => {
     setMatches((prev) => prev.map((m) => (m.matchId === updated.matchId ? updated : m)));
     void loadLeaderboard();
+    void loadStandings();
+  };
+
+  const handleKnockoutResolved = () => {
+    void loadMatches();
+    void loadStandings();
+  };
+
+  const handleResolveKnockout = async () => {
+    setResolving(true);
+    setResolveMessage('');
+    try {
+      const { message, resolved } = await resolveKnockoutTeams();
+      const knockoutMsg = formatResolvedKnockoutMessage(resolved ?? []);
+      setResolveMessage(knockoutMsg ? `${message}. ${knockoutMsg}` : message);
+      void loadMatches();
+      void loadStandings();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
+          : undefined;
+      setResolveMessage(msg || 'Failed to resolve knockout teams');
+    } finally {
+      setResolving(false);
+      setTimeout(() => setResolveMessage(''), 6000);
+    }
   };
 
   return (
@@ -103,6 +149,81 @@ const Matches: React.FC<MatchesProps> = ({
             <span className="text-slate-400"> · matches preview from Kanhans</span>
           )}
         </p>
+      )}
+
+      <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="font-display text-sm font-bold text-slate-900">Knockout resolution</h2>
+          <button
+            type="button"
+            onClick={() => void handleResolveKnockout()}
+            disabled={resolving || !selectedTenantId}
+            className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+          >
+            {resolving ? 'Resolving…' : 'Re-resolve teams'}
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">
+          After group matches are finalized, placeholders like 2A vs 2B are filled automatically.
+          Use re-resolve after bulk score updates.
+        </p>
+        {resolveMessage && (
+          <p className="mt-2 text-xs font-medium text-emerald-600">{resolveMessage}</p>
+        )}
+      </section>
+
+      {standings.length > 0 && (
+        <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setStandingsOpen((o) => !o)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <h2 className="font-display text-sm font-bold text-slate-900">Group standings</h2>
+            <span className="text-xs text-slate-500">{standingsOpen ? 'Hide' : 'Show'}</span>
+          </button>
+          {standingsOpen && (
+            <div className="mt-3 space-y-3 max-h-64 overflow-y-auto">
+              {standings.map((group) => (
+                <div key={group.group}>
+                  <p className="text-xs font-bold text-slate-700 mb-1">
+                    Group {group.group}
+                    {!group.complete && (
+                      <span className="ml-2 font-normal text-amber-600">in progress</span>
+                    )}
+                  </p>
+                  {group.ranked.length > 0 ? (
+                    <>
+                      {!group.complete && (
+                        <p className="text-[10px] text-slate-400 mb-1">
+                          Provisional — finalize all 6 group matches for confirmed order
+                        </p>
+                      )}
+                      <ul className="space-y-0.5">
+                        {group.ranked.map((row) => (
+                          <li
+                            key={row.teamId}
+                            className="flex justify-between text-xs text-slate-600"
+                          >
+                            <span>
+                              {row.position}. {row.teamId}
+                            </span>
+                            <span>
+                              {row.points} pts · {row.goalDifference > 0 ? '+' : ''}
+                              {row.goalDifference}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="text-xs text-slate-400">No finalized group matches yet</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {leaderboard.length > 0 && (
@@ -154,7 +275,12 @@ const Matches: React.FC<MatchesProps> = ({
       ) : (
         <div className="space-y-3 pb-8">
           {matches.map((match) => (
-            <AdminMatchCard key={match.matchId} match={match} onFinalized={handleFinalized} />
+            <AdminMatchCard
+              key={match.matchId}
+              match={match}
+              onFinalized={handleFinalized}
+              onKnockoutResolved={handleKnockoutResolved}
+            />
           ))}
         </div>
       )}

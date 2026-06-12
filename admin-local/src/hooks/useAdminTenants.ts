@@ -3,7 +3,7 @@ import { getTenants, restoreTenantFromStorage, setActiveTenantId } from '../api'
 import { ALL_TENANT_ID } from '../types';
 import type { Tenant } from '../types';
 
-export function useAdminTenants() {
+export function useAdminTenants(enabled = true) {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [activeTenant, setActiveTenant] = useState<Tenant | null>(null);
@@ -12,6 +12,11 @@ export function useAdminTenants() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (!enabled) {
+      setTenantsLoading(false);
+      return;
+    }
+
     void (async () => {
       setTenantsLoading(true);
       try {
@@ -36,7 +41,7 @@ export function useAdminTenants() {
         setTenantsLoading(false);
       }
     })();
-  }, []);
+  }, [enabled]);
 
   const handleTenantChange = useCallback(
     (tenantId: string) => {
