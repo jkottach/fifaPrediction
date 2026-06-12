@@ -1,6 +1,7 @@
 /**
- * pm2 on EC2 (run from repo root or admin-local):
- *   cd admin-local && npm run build
+ * pm2 on EC2:
+ *   cd /home/ec2-user/fifaPrediction/admin-local
+ *   npm run build
  *   pm2 start deploy/ecosystem.config.cjs
  *   pm2 save
  *
