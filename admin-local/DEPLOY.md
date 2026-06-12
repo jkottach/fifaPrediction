@@ -1,66 +1,130 @@
 # Deploy admin app on EC2 (same server as Kanhans prediction)
 
-EC2 repo path: **`/home/ec2-user/fifaPrediction`**
+Main prediction app repo: **`/home/ec2-user/fifaPrediction`** (branch `main`)
 
-Runs on **port 5002** alongside the main app (API **5001**, frontend **3000**).
+Admin app lives on branch **`admin-local`** — use a **git worktree** so you do not switch the main repo away from `main`.
 
-## 1. On EC2 — get code
+Admin runs on **port 5002** alongside wc26 (API **5001**, frontend **3000**).
+
+Public URL: **https://admin.kanhans.com**
+
+---
+
+## 0. One-time: add admin worktree (on EC2)
 
 ```bash
 cd /home/ec2-user/fifaPrediction
-git fetch origin
-git checkout admin-local
-git pull origin admin-local
+git fetch origin admin-local
+git worktree add /home/ec2-user/fifaPrediction-admin admin-local
 ```
+
+Admin code path: **`/home/ec2-user/fifaPrediction-admin/admin-local`**
+
+> Do **not** run `git checkout admin-local` inside `fifaPrediction` — that removes `api/` and `frontend/` from that folder.
+
+---
+
+## 1. GoDaddy DNS
+
+| Type | Name | Value |
+|------|------|--------|
+| A | `admin` | Same EC2 public IP as `wc26.kanhans.com` |
+
+---
 
 ## 2. Configure environment
 
 ```bash
-cd /home/ec2-user/fifaPrediction/admin-local
+cd /home/ec2-user/fifaPrediction-admin/admin-local
 cp .env.example .env
 nano .env
 ```
 
-Set at minimum:
-
-- `MONGODB_URI` — same as `/home/ec2-user/fifaPrediction/api/.env`
-- `ADMIN_PIN` — your PIN (default `12189`)
-- `ADMIN_TENANTS` or `tenants.config.json` — same DBs as local
-
-## 3. Build and start
+**`.env`** — minimum:
 
 ```bash
-cd /home/ec2-user/fifaPrediction/admin-local
+MONGODB_URI=<copy from /home/ec2-user/fifaPrediction/api/.env>
+ADMIN_PORT=5002
+ADMIN_PIN=12189
+```
+
+**`tenants.config.json`** — copy from example and set each app’s database:
+
+```bash
+cp tenants.config.example.json tenants.config.json
+nano tenants.config.json
+```
+
+| File | Purpose |
+|------|---------|
+| `.env` | MongoDB connection string + PIN |
+| `tenants.config.json` | List of apps + `dbName` per app |
+
+---
+
+## 3. Build and start (pm2)
+
+```bash
+cd /home/ec2-user/fifaPrediction-admin/admin-local
 npm install
 npm run build
 pm2 start deploy/ecosystem.config.cjs
 pm2 save
-pm2 logs wc26-admin
+pm2 status
 ```
 
-Health check: `curl http://127.0.0.1:5002/health`
-
-## 4. Nginx (`admin.kanhans.com`)
+Health check:
 
 ```bash
-cd /home/ec2-user/fifaPrediction/admin-local
+curl http://127.0.0.1:5002/health
+```
+
+---
+
+## 4. Nginx + HTTPS
+
+```bash
+cd /home/ec2-user/fifaPrediction-admin/admin-local
 sudo cp deploy/nginx-admin.conf /etc/nginx/sites-available/kanhans-admin
 sudo ln -sf /etc/nginx/sites-available/kanhans-admin /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+sudo nginx -t
+sudo systemctl reload nginx
 sudo certbot --nginx -d admin.kanhans.com
 ```
 
-GoDaddy DNS **A record**: `admin` → same EC2 IP as `wc26.kanhans.com`.
+Open **https://admin.kanhans.com** → enter PIN.
 
-Open **https://admin.kanhans.com** and enter the PIN.
+---
 
 ## 5. Updates after code changes
 
 ```bash
-cd /home/ec2-user/fifaPrediction
+cd /home/ec2-user/fifaPrediction-admin
 git pull origin admin-local
 cd admin-local
 npm install
 npm run build
 pm2 restart wc26-admin
 ```
+
+---
+
+## Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| 502 Bad Gateway | `pm2 logs wc26-admin` — is port 5002 up? |
+| Invalid PIN | Check `ADMIN_PIN` in `.env`, `pm2 restart wc26-admin` |
+| No tenants in UI | Check `tenants.config.json` |
+| DB errors | Same `MONGODB_URI` as main API; Atlas IP allowlist includes EC2 |
+
+---
+
+## Port map (same EC2)
+
+| URL | Internal port |
+|-----|----------------|
+| wc26.kanhans.com | 3000 + 5001 |
+| admin.kanhans.com | 5002 |
+
+Nginx routes by domain name; GoDaddy only needs the same IP for both.

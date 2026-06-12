@@ -1,6 +1,6 @@
 /**
  * pm2 on EC2:
- *   cd /home/ec2-user/fifaPrediction/admin-local
+ *   cd /home/ec2-user/fifaPrediction-admin/admin-local
  *   npm run build
  *   pm2 start deploy/ecosystem.config.cjs
  *   pm2 save
