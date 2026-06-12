@@ -10,6 +10,23 @@ export function formatUserId(user: UserDocument): string {
   return user._id.toString();
 }
 
+/** Dense ranking: 1, 2, 2, 3… tied scores share a rank. Input must be sorted by points desc. */
+export function assignDenseRanks<T extends { totalPoints: number }>(
+  items: T[]
+): Array<T & { rank: number }> {
+  let lastPoints = Number.NaN;
+  let rank = 0;
+
+  return items.map((item) => {
+    const points = item.totalPoints ?? 0;
+    if (points !== lastPoints) {
+      rank++;
+      lastPoints = points;
+    }
+    return { ...item, rank };
+  });
+}
+
 /** Leaderboard and public rankings — honors both `isActive` and `status`. */
 export function isUserLeaderboardEligible(
   user: Pick<UserDocument, 'isActive' | 'status'>

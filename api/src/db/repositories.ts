@@ -194,6 +194,22 @@ export async function countUsersAhead(totalPoints: number): Promise<number> {
   });
 }
 
+/** Distinct point totals strictly above `totalPoints` — used for dense rank (1, 2, 2, 3…). */
+export async function countDistinctHigherPointTotals(totalPoints: number): Promise<number> {
+  const distinct = await getUsersCollection().distinct('totalPoints', {
+    ...activeUserFilter,
+    totalPoints: { $gt: totalPoints },
+  });
+  return distinct.length;
+}
+
+export async function findMatchesByIds(matchIds: string[]): Promise<MatchDocument[]> {
+  if (matchIds.length === 0) return [];
+  const oids = matchIds.map((id) => toObjectId(id)).filter(Boolean) as ObjectId[];
+  if (oids.length === 0) return [];
+  return getMatchesCollection().find({ _id: { $in: oids } }).toArray();
+}
+
 export async function deleteUserById(userId: string): Promise<boolean> {
   const oid = toObjectId(userId);
   if (!oid) return false;

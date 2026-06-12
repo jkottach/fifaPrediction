@@ -4,6 +4,7 @@ import { logger } from '../lib/logger';
 import {
   attachMatchToPredictions,
   findMatchById,
+  findMatchesByIds,
   findUserById,
   updateUserById,
   upsertUserPrediction,
@@ -59,6 +60,13 @@ export const getUserPredictions = async (req: AuthRequest, res: Response) => {
     if (matchId) {
       predictions = predictions.filter((p) => p.matchId === String(matchId));
     }
+
+    const matchIds = [...new Set(predictions.map((p) => p.matchId))];
+    const matches = await findMatchesByIds(matchIds);
+    const completedMatchIds = new Set(
+      matches.filter((m) => m.status === 'completed').map((m) => m._id.toString())
+    );
+    predictions = predictions.filter((p) => completedMatchIds.has(p.matchId));
 
     predictions.sort((a, b) => new Date(b.submittedTime).getTime() - new Date(a.submittedTime).getTime());
 

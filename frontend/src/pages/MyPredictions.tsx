@@ -50,8 +50,8 @@ const MyPredictions: React.FC = () => {
     <div className="min-h-full bg-slate-50">
       <PageHero
         title="My predictions"
-        subtitle="Track your picks and points"
-        badge="History"
+        subtitle="Points from completed matches"
+        badge="Results"
       />
 
       <div className="px-5 py-6">
@@ -98,15 +98,9 @@ const MyPredictions: React.FC = () => {
                             : '—'}
                         </p>
                       </div>
-                      {isCompleted ? (
-                        <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">
-                          Done
-                        </span>
-                      ) : (
-                        <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800">
-                          Pending
-                        </span>
-                      )}
+                      <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">
+                        Done
+                      </span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
@@ -163,7 +157,7 @@ const MyPredictions: React.FC = () => {
         ) : (
           <div className={`${cardPad} py-12 text-center`}>
             <p className="mb-4 text-sm font-medium text-slate-600">
-              You haven&apos;t made any predictions yet.
+              No completed match results yet. Your scored predictions appear here after matches finish.
             </p>
             <Link to="/dashboard" className={`${btnPrimary} inline-flex max-w-xs mx-auto`}>
               Start predicting

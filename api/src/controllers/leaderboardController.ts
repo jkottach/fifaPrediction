@@ -2,26 +2,29 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../lib/logger';
 import {
-  countUsersAhead,
+  countDistinctHigherPointTotals,
   findUserById,
   listUsersByTotalPoints,
 } from '../db/repositories';
-import { formatUserId, isUserLeaderboardEligible } from '../db/helpers';
+import { assignDenseRanks, formatUserId, isUserLeaderboardEligible } from '../db/helpers';
 
 function buildLeaderboardEntries(users: Awaited<ReturnType<typeof listUsersByTotalPoints>>) {
-  return users
-    .filter((user) => user._id)
-    .map((user, index) => ({
-      rank: index + 1,
-      totalPoints: user.totalPoints ?? 0,
-      name:
-        `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() ||
-        user.email ||
-        'User',
-      state: user.state || '',
-      userId: formatUserId(user),
-      email: user.email ?? '',
-    }));
+  const ranked = assignDenseRanks(
+    users
+      .filter((user) => user._id)
+      .map((user) => ({
+        totalPoints: user.totalPoints ?? 0,
+        name:
+          `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() ||
+          user.email ||
+          'User',
+        state: user.state || '',
+        userId: formatUserId(user),
+        email: user.email ?? '',
+      }))
+  );
+
+  return ranked.map(({ rank, ...entry }) => ({ rank, ...entry }));
 }
 
 export const getTopLeaderboard = async (req: AuthRequest, res: Response) => {
@@ -48,8 +51,9 @@ export const getUserStats = async (req: AuthRequest, res: Response) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const eligible = isUserLeaderboardEligible(user);
-    const ahead = eligible ? await countUsersAhead(user.totalPoints) : 0;
-    const rank = eligible && user.totalPoints > 0 ? ahead + 1 : '-';
+    const rank = eligible
+      ? (await countDistinctHigherPointTotals(user.totalPoints ?? 0)) + 1
+      : '-';
     const stats = { rank, totalPoints: user.totalPoints };
 
     res.json({
