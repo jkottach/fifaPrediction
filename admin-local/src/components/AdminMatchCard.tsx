@@ -62,7 +62,12 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
         );
       } else {
         const base = message || 'Scores saved — user points recalculated';
-        setSuccess(knockoutMsg ? `${base}. ${knockoutMsg}` : base);
+        const completedHint =
+          updated.status === 'completed' && match.status !== 'completed'
+            ? ' Match is now under Completed.'
+            : '';
+        const full = `${base}${completedHint}`;
+        setSuccess(knockoutMsg ? `${full}. ${knockoutMsg}` : full);
       }
       onFinalized(updated);
       if (resolved && resolved.length > 0) onKnockoutResolved?.(resolved);
@@ -112,6 +117,12 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
           </span>
         </div>
       </div>
+
+      {isCompleted && match.team1Score != null && match.team2Score != null && (
+        <p className="mb-2 text-center font-display text-2xl font-bold text-slate-900">
+          {match.team1Score} – {match.team2Score}
+        </p>
+      )}
 
       <div className="flex items-center justify-center gap-3 py-2">
         <input

@@ -103,7 +103,18 @@ const Matches: React.FC<MatchesProps> = ({
   }, [loadStandings]);
 
   const handleFinalized = (updated: Match) => {
-    setMatches((prev) => prev.map((m) => (m.matchId === updated.matchId ? updated : m)));
+    const sameMatch = (m: Match) =>
+      m.matchId === updated.matchId ||
+      (!!updated.matchTag && !!m.matchTag && m.matchTag === updated.matchTag);
+
+    setMatches((prev) => prev.map((m) => (sameMatch(m) ? updated : m)));
+
+    if (filter === 'ongoing' && updated.status === 'completed') {
+      setFilter('completed');
+    } else {
+      void loadMatches();
+    }
+
     void loadLeaderboard();
     void loadStandings();
   };

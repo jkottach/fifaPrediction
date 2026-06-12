@@ -530,7 +530,9 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
         error?: string;
       }> = [];
 
-      let firstMatch: ReturnType<typeof formatMatchForApi> | null = null;
+      const previewTenantId = resolveReadTenantId(tenantId);
+      let previewMatch: ReturnType<typeof formatMatchForApi> | null = null;
+      let fallbackMatch: ReturnType<typeof formatMatchForApi> | null = null;
       let allResolved: ResolvedMatchUpdate[] = [];
 
       for (const t of listConfiguredTenants()) {
@@ -546,7 +548,9 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
           const teamIds = [updated.team1, updated.team2];
           const teamDocs = await teams(tdb).find({ teamId: { $in: teamIds } }).toArray();
           const teamById = new Map(teamDocs.map((team) => [team.teamId, team]));
-          if (!firstMatch) firstMatch = formatMatchForApi(updated, teamById);
+          const formatted = formatMatchForApi(updated, teamById);
+          if (t.id === previewTenantId) previewMatch = formatted;
+          if (!fallbackMatch) fallbackMatch = formatted;
           if (resolved.length > 0) allResolved = resolved;
           outcomes.push({
             tenant: { id: t.id, label: t.label, dbName: t.dbName },
@@ -576,7 +580,7 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
           failed.length === 0
             ? `Match finalized on all ${succeeded.length} databases`
             : `Match finalized on ${succeeded.length} of ${outcomes.length} databases`,
-        match: firstMatch,
+        match: previewMatch ?? fallbackMatch,
         resolved: allResolved,
         tenant: { id: ALL_TENANT_ID, label: 'All', dbName: 'all databases' },
         outcomes,
