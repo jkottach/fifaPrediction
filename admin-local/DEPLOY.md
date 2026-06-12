@@ -43,10 +43,12 @@ Health check: `curl http://127.0.0.1:5002/health`
 sudo cp deploy/nginx-admin.conf /etc/nginx/sites-available/wc26-admin
 sudo ln -sf /etc/nginx/sites-available/wc26-admin /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d admin.wc26.kanhans.com
+sudo certbot --nginx -d admin.kanhans.com
 ```
 
-Open `https://admin.wc26.kanhans.com` and enter the PIN.
+Add a DNS **A record**: `admin.kanhans.com` → your EC2 IP.
+
+Open `https://admin.kanhans.com` and enter the PIN.
 
 ## 5. Updates after code changes
 
