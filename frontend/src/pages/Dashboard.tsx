@@ -134,7 +134,12 @@ const Dashboard: React.FC = () => {
         if (status !== 'scheduled' && status !== 'ongoing') return false;
         return isMatchOpenForPrediction(m, now);
       })
-      .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+      .sort((a, b) => {
+        const ta = Date.parse(a.matchTime ?? '');
+        const tb = Date.parse(b.matchTime ?? '');
+        if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+        return (a.sequence ?? 0) - (b.sequence ?? 0);
+      })
       .slice(0, 24);
   }, [matches]);
 

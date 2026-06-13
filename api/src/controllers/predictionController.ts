@@ -46,7 +46,11 @@ export const submitPrediction = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getUserPredictions = async (req: AuthRequest, res: Response) => {
+async function listUserPredictions(
+  req: AuthRequest,
+  res: Response,
+  options: { completedOnly: boolean }
+) {
   try {
     const userId = req.user?.userId;
     const { matchId, page = '1', limit = '10' } = req.query;
@@ -61,12 +65,14 @@ export const getUserPredictions = async (req: AuthRequest, res: Response) => {
       predictions = predictions.filter((p) => p.matchId === String(matchId));
     }
 
-    const matchIds = [...new Set(predictions.map((p) => p.matchId))];
-    const matches = await findMatchesByIds(matchIds);
-    const completedMatchIds = new Set(
-      matches.filter((m) => m.status === 'completed').map((m) => m._id.toString())
-    );
-    predictions = predictions.filter((p) => completedMatchIds.has(p.matchId));
+    if (options.completedOnly) {
+      const matchIds = [...new Set(predictions.map((p) => p.matchId))];
+      const matches = await findMatchesByIds(matchIds);
+      const completedMatchIds = new Set(
+        matches.filter((m) => m.status === 'completed').map((m) => m._id.toString())
+      );
+      predictions = predictions.filter((p) => completedMatchIds.has(p.matchId));
+    }
 
     predictions.sort((a, b) => new Date(b.submittedTime).getTime() - new Date(a.submittedTime).getTime());
 
@@ -98,6 +104,10 @@ export const getUserPredictions = async (req: AuthRequest, res: Response) => {
     const errorDetails = logger.error('getUserPredictions', error, { userId: req.user?.userId });
     res.status(errorDetails.statusCode || 500).json({ error: 'Failed to fetch predictions' });
   }
+}
+
+export const getUserPredictions = async (req: AuthRequest, res: Response) => {
+  return listUserPredictions(req, res, { completedOnly: false });
 };
 
 export const updatePrediction = async (req: AuthRequest, res: Response) => {
@@ -167,5 +177,5 @@ export const deletePrediction = async (req: AuthRequest, res: Response) => {
 };
 
 export const getUserPredictionsFromResults = async (req: AuthRequest, res: Response) => {
-  return getUserPredictions(req, res);
+  return listUserPredictions(req, res, { completedOnly: true });
 };

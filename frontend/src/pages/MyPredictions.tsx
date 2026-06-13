@@ -20,7 +20,7 @@ const MyPredictions: React.FC = () => {
   const fetchPredictions = async (page: number) => {
     try {
       setLoading(true);
-      const response = await apiService.getUserPredictions(page, 10);
+      const response = await apiService.getUserPredictionsFromResults(page, 10);
       setPredictions(response.data.predictions);
       setPagination(response.data.pagination);
     } catch (error) {
