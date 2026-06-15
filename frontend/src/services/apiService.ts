@@ -158,6 +158,13 @@ class ApiService {
       skipAuthRedirect: true,
     } as AuthRequestConfig);
   }
+
+  getLatestCompletedMatchTopEarners(limit?: number) {
+    return this.client.get('/matches/latest-completed/top-earners', {
+      params: { limit: limit ?? 50 },
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
 }
 
 export const apiService = new ApiService();

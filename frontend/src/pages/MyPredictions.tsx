@@ -1,21 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/apiService';
-import { Prediction, Match } from '../types';
+import { Match, MatchEarnerEntry, Prediction } from '../types';
 import PredictionForm from '../components/PredictionForm';
 import PageHero from '../components/PageHero';
 import { btnPrimary, cardPad, spinner } from '../theme';
 import { format } from 'date-fns';
 
+type ViewMode = 'mine' | 'latest-top';
+
 const MyPredictions: React.FC = () => {
+  const [view, setView] = useState<ViewMode>('mine');
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [editingPrediction, setEditingPrediction] = useState<Prediction | null>(null);
+  const [latestMatch, setLatestMatch] = useState<Match | null>(null);
+  const [topEarners, setTopEarners] = useState<MatchEarnerEntry[]>([]);
+  const [topEarnersLoading, setTopEarnersLoading] = useState(false);
 
   useEffect(() => {
-    fetchPredictions(1);
-  }, []);
+    if (view === 'mine') {
+      fetchPredictions(1);
+    }
+  }, [view]);
+
+  useEffect(() => {
+    if (view === 'latest-top') {
+      fetchLatestTopEarners();
+    }
+  }, [view]);
 
   const fetchPredictions = async (page: number) => {
     try {
@@ -27,6 +41,21 @@ const MyPredictions: React.FC = () => {
       console.error('Failed to fetch predictions:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLatestTopEarners = async () => {
+    try {
+      setTopEarnersLoading(true);
+      const response = await apiService.getLatestCompletedMatchTopEarners(50);
+      setLatestMatch(response.data.match ?? null);
+      setTopEarners(response.data.earners ?? []);
+    } catch (error) {
+      console.error('Failed to fetch latest match top earners:', error);
+      setLatestMatch(null);
+      setTopEarners([]);
+    } finally {
+      setTopEarnersLoading(false);
     }
   };
 
@@ -46,16 +75,123 @@ const MyPredictions: React.FC = () => {
     return isCompleted ? 0 : null;
   };
 
+  const medal = (rank: number) => {
+    if (rank === 1) return '🥇';
+    if (rank === 2) return '🥈';
+    if (rank === 3) return '🥉';
+    return null;
+  };
+
+  const latestTeam1 =
+    latestMatch?.team1Info?.teamName ?? latestMatch?.team1 ?? 'Team 1';
+  const latestTeam2 =
+    latestMatch?.team2Info?.teamName ?? latestMatch?.team2 ?? 'Team 2';
+
   return (
     <div className="min-h-full bg-slate-50">
       <PageHero
         title="My predictions"
-        subtitle="Completed matches and points earned"
+        subtitle={
+          view === 'mine'
+            ? 'Completed matches and points earned'
+            : 'Rankings from the last finished match'
+        }
         badge="History"
       />
 
       <div className="px-5 py-6">
-        {loading ? (
+        <div className="mb-5 flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setView('mine')}
+            className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+              view === 'mine'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            My predictions
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('latest-top')}
+            className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+              view === 'latest-top'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            Last match rank
+          </button>
+        </div>
+
+        {view === 'latest-top' ? (
+          topEarnersLoading ? (
+            <div className="flex flex-col items-center py-16">
+              <div className={spinner} />
+              <p className="mt-4 text-sm font-medium text-slate-600">Loading...</p>
+            </div>
+          ) : !latestMatch ? (
+            <div className={`${cardPad} py-12 text-center`}>
+              <p className="text-sm font-medium text-slate-600">
+                No finished matches yet.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className={`${cardPad} mb-4`}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  {latestMatch.matchTag || 'Latest completed match'}
+                </p>
+                <h2 className="mt-1 font-display text-lg font-bold text-slate-900">
+                  {latestTeam1} vs {latestTeam2}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Final: {latestMatch.team1Score} – {latestMatch.team2Score}
+                  {latestMatch.matchTime
+                    ? ` · ${format(new Date(latestMatch.matchTime), 'MMM dd, yyyy · HH:mm')}`
+                    : ''}
+                </p>
+              </div>
+
+              {topEarners.length > 0 ? (
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="divide-y divide-slate-100">
+                    {topEarners.map((entry) => (
+                      <div
+                        key={entry.userId}
+                        className={`flex items-center justify-between gap-3 px-4 py-3 ${
+                          entry.rank <= 3 ? 'bg-emerald-50/60' : ''
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="w-10 shrink-0 font-display font-bold text-slate-900">
+                            {medal(entry.rank) || `#${entry.rank}`}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-slate-900">{entry.name}</p>
+                            <p className="text-xs text-slate-500 tabular-nums">
+                              Predicted {entry.team1Score} – {entry.team2Score}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="shrink-0 font-display text-lg font-bold text-emerald-600">
+                          {entry.points} pts
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className={`${cardPad} py-10 text-center`}>
+                  <p className="text-sm font-medium text-slate-600">
+                    No predictions were submitted for this match.
+                  </p>
+                </div>
+              )}
+            </>
+          )
+        ) : loading ? (
           <div className="flex flex-col items-center py-16">
             <div className={spinner} />
             <p className="mt-4 text-sm font-medium text-slate-600">Loading predictions...</p>

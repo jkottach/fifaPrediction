@@ -96,6 +96,15 @@ export interface LeaderboardEntry {
   email: string;
 }
 
+export interface MatchEarnerEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  points: number;
+  team1Score: number;
+  team2Score: number;
+}
+
 export interface AuthState {
   token: string | null;
   user: User | null;

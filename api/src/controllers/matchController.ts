@@ -5,11 +5,13 @@ import { buildMatchTag, formatMatchForApi } from '../db/helpers';
 import {
   createMatch as insertMatch,
   deleteMatchById,
+  findLatestCompletedMatch,
   findMatchById,
   getEnrichedMatch,
   getEnrichedMatches,
   listMatches,
   listTeamsForPicker,
+  listTopEarnersForMatch,
   resolveTeamInfoForMatch,
   updateMatchById,
 } from '../db/repositories';
@@ -83,6 +85,29 @@ export const getAllMatches = async (req: AuthRequest, res: Response) => {
         ? { details: errorDetails.message }
         : {}),
     });
+  }
+};
+
+export const getLatestCompletedMatchTopEarners = async (req: AuthRequest, res: Response) => {
+  try {
+    const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(rawLimit ?? '50'), 10) || 50));
+
+    const latest = await findLatestCompletedMatch();
+    if (!latest) {
+      return res.json({ match: null, earners: [] });
+    }
+
+    const match = await getEnrichedMatch(latest);
+    const earners = await listTopEarnersForMatch(latest._id.toString(), limitNum);
+
+    res.json({ match, earners });
+  } catch (error) {
+    const errorDetails = logger.error('getLatestCompletedMatchTopEarners', error, {
+      method: req.method,
+      path: req.path,
+    });
+    res.status(errorDetails.statusCode || 500).json({ error: 'Failed to fetch latest match top earners' });
   }
 };
 

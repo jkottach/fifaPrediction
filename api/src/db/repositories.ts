@@ -137,6 +137,14 @@ export async function findUsersWithPredictionForMatch(matchId: string): Promise<
   return getUsersCollection().find({ 'predictions.matchId': matchId }).toArray();
 }
 
+export async function findLatestCompletedMatch(): Promise<MatchDocument | null> {
+  return getMatchesCollection()
+    .find({ status: 'completed' })
+    .sort({ updatedAt: -1, matchTime: -1 })
+    .limit(1)
+    .next();
+}
+
 export async function getEarliestMatchKickoff(): Promise<Date | null> {
   const match = await getMatchesCollection()
     .find({ status: { $in: ['scheduled', 'ongoing'] } })
@@ -204,6 +212,63 @@ export async function listGroupStageGroups(): Promise<GroupStageGroup[]> {
 const activeUserFilter: Filter<UserDocument> = {
   $or: [{ isActive: true }, { isActive: { $exists: false } }],
 };
+
+function leaderboardDisplayName(user: UserDocument): string {
+  return `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email || 'User';
+}
+
+export interface MatchEarnerRow {
+  rank: number;
+  userId: string;
+  name: string;
+  points: number;
+  team1Score: number;
+  team2Score: number;
+}
+
+export async function listTopEarnersForMatch(
+  matchId: string,
+  limit: number
+): Promise<MatchEarnerRow[]> {
+  const users = await getUsersCollection()
+    .find({
+      ...activeUserFilter,
+      'predictions.matchId': matchId,
+    })
+    .toArray();
+
+  const rows = users
+    .map((user) => {
+      const pred = user.predictions.find((p) => p.matchId === matchId);
+      if (!pred) return null;
+      return {
+        userId: user._id.toString(),
+        name: leaderboardDisplayName(user),
+        points: pred.points ?? 0,
+        team1Score: pred.team1Score,
+        team2Score: pred.team2Score,
+      };
+    })
+    .filter((row): row is Omit<MatchEarnerRow, 'rank'> => row !== null)
+    .sort((a, b) => {
+      const diff = b.points - a.points;
+      if (diff !== 0) return diff;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+
+  let denseRank = 0;
+  let previousPoints: number | null = null;
+
+  const ranked: MatchEarnerRow[] = rows.map((row) => {
+    if (previousPoints === null || row.points !== previousPoints) {
+      denseRank += 1;
+      previousPoints = row.points;
+    }
+    return { ...row, rank: denseRank };
+  });
+
+  return ranked.slice(0, limit);
+}
 
 export async function listUsersByTotalPoints(limit: number): Promise<UserDocument[]> {
   return getUsersCollection()
