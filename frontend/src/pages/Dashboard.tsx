@@ -28,6 +28,7 @@ const Dashboard: React.FC = () => {
   const [userPredictions, setUserPredictions] = useState<Prediction[]>([]);
   const [myRank, setMyRank] = useState<UserRankInfo>(defaultRankInfo);
   const [loadError, setLoadError] = useState('');
+  const [showTournamentPredictions, setShowTournamentPredictions] = useState(false);
 
   const getPredictionMatchId = (prediction: Prediction): string =>
     typeof prediction.matchId === 'string' ? prediction.matchId : prediction.matchId.matchId;
@@ -179,8 +180,17 @@ const Dashboard: React.FC = () => {
 
         {isLoggedIn && (
           <div>
-            <h2 className="font-display text-lg font-bold text-slate-900 mb-4">Tournament predictions</h2>
-            <TournamentPredictions />
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-bold text-slate-900">Tournament predictions</h2>
+              <button
+                type="button"
+                onClick={() => setShowTournamentPredictions((open) => !open)}
+                className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+              >
+                {showTournamentPredictions ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {showTournamentPredictions && <TournamentPredictions />}
           </div>
         )}
 
