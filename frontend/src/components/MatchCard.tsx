@@ -3,6 +3,7 @@ import { Match, Prediction } from '../types';
 import { format } from 'date-fns';
 import { apiService } from '../services/apiService';
 import { getPredictionDeadlineIso, isMatchOpenForPrediction } from '../utils/matchDeadline';
+import { isMatchLive } from '../utils/matchStatus';
 
 interface MatchCardProps {
   match: Match;
@@ -62,9 +63,12 @@ const CountUnit: React.FC<{ value: number; label: string }> = ({ value, label })
 // ── Main component ─────────────────────────────────────────────────────────────
 const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredictionSubmit }) => {
   const isCompleted = match.status === 'completed';
-  const isOngoing   = match.status === 'ongoing';
-  const isPredictionOpen = isMatchOpenForPrediction(match);
+  const isOngoing = isMatchLive(match);
+  const isPredictionOpen = !isOngoing && !isCompleted && isMatchOpenForPrediction(match);
   const predictionDeadlineIso = getPredictionDeadlineIso(match) ?? match.predictionsEndingTime;
+
+  const liveScore1 = match.team1Score ?? 0;
+  const liveScore2 = match.team2Score ?? 0;
 
   const [team1Score, setTeam1Score] = useState<number | ''>('');
   const [team2Score, setTeam2Score] = useState<number | ''>('');
@@ -175,14 +179,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         {/* Score / Inputs */}
         <div className="flex flex-col items-center gap-1 shrink-0">
           <div className="flex items-center gap-1.5">
-            {isCompleted ? (
+            {isCompleted || isOngoing ? (
               <>
                 <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-xl">
-                  {match.team1Score ?? 0}
+                  {liveScore1}
                 </div>
                 <span className="text-white/40 font-bold text-lg">–</span>
                 <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-xl">
-                  {match.team2Score ?? 0}
+                  {liveScore2}
                 </div>
               </>
             ) : (
@@ -207,7 +211,10 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
               </>
             )}
           </div>
-          {!isCompleted && (
+          {isOngoing && (
+            <span className="text-white/30 text-[9px] uppercase tracking-widest">Live score</span>
+          )}
+          {!isCompleted && !isOngoing && (
             <span className="text-white/30 text-[9px] uppercase tracking-widest">
               {isPredictionOpen ? 'Your Prediction' : 'Closed'}
             </span>
@@ -231,6 +238,16 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         <p className="relative z-10 text-red-400 text-[11px] text-center px-4 -mt-1 mb-1 font-medium">{error}</p>
       )}
 
+      {/* ── User prediction (live matches) ── */}
+      {isOngoing && userPrediction && (
+        <div className="relative z-10 mx-4 mb-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-center">
+          <span className="text-white/40 text-[9px] uppercase tracking-widest">Your prediction</span>
+          <p className="mt-0.5 font-mono text-sm font-bold text-white">
+            {userPrediction.team1Score} – {userPrediction.team2Score}
+          </p>
+        </div>
+      )}
+
       {/* ── Divider ── */}
       <div className="relative z-10 mx-4 border-t border-white/[0.08]" />
 
@@ -238,7 +255,9 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
       <div className="relative z-10 flex items-start justify-between px-4 py-3 gap-4">
 
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-white/35 text-[9px] uppercase tracking-widest">Kick-off</span>
+          <span className="text-white/35 text-[9px] uppercase tracking-widest">
+            {isOngoing ? 'Started' : 'Kick-off'}
+          </span>
           <span className="text-white/80 text-xs font-bold">
             {format(new Date(match.matchTime), 'MMM dd, yyyy · h:mm a')}
           </span>
@@ -247,9 +266,17 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         {/* Countdown or close time */}
         <div className="flex flex-col items-end gap-1 shrink-0">
           <span className="text-white/35 text-[9px] uppercase tracking-widest text-right">
-            {isPredictionOpen ? 'Prediction closes in' : isCompleted ? 'Match ended' : 'Prediction closed'}
+            {isOngoing
+              ? 'In progress'
+              : isPredictionOpen
+              ? 'Prediction closes in'
+              : isCompleted
+              ? 'Match ended'
+              : 'Prediction closed'}
           </span>
-          {isPredictionOpen && countdown ? (
+          {isOngoing ? (
+            <span className="text-white/40 text-xs font-semibold">In progress</span>
+          ) : isPredictionOpen && countdown ? (
             <div className="flex items-end gap-1">
               {countdown.d > 0 && (
                 <>
@@ -275,7 +302,11 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
 
       {/* ── Submit / status button ── */}
       <div className="relative z-10 px-4 pb-4">
-        {!isCompleted ? (
+        {isOngoing ? (
+          <div className="w-full py-2.5 bg-white/5 border border-white/10 rounded-xl text-center text-white/30 text-sm font-bold tracking-wide">
+            Match in progress
+          </div>
+        ) : !isCompleted ? (
           <button
             onClick={handleSubmit}
             disabled={loading || !isPredictionOpen}
