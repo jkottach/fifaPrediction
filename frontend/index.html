@@ -8,17 +8,265 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#0b1220" />
-    <title>FCC Worldcup 26</title>
-    <meta name="description" content="Predict World Cup scores, earn points, and win prizes with FCC Worldcup 26" />
+    <title>FCC Worldcup 26 – Maintenance</title>
+    <meta name="description" content="FCC Worldcup 26 is currently under maintenance. Please visit our new address." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        background: #0b1220;
+        color: #e8eaf2;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+      }
+
+      .card {
+        background: #141c2e;
+        border: 1px solid #1e2d48;
+        border-radius: 20px;
+        padding: 2.5rem 2rem;
+        max-width: 520px;
+        width: 100%;
+        text-align: center;
+      }
+
+      h1 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #ffffff;
+        margin-bottom: 0.25rem;
+        letter-spacing: -0.5px;
+      }
+
+      .subtitle {
+        font-size: 0.95rem;
+        color: #7b8db0;
+        margin-bottom: 2rem;
+      }
+
+      /* --- Detour Illustration --- */
+      .illustration {
+        margin: 0 auto 2rem;
+        max-width: 340px;
+      }
+
+      /* Road */
+      .road {
+        background: #2c2c2a;
+        border-radius: 8px;
+        height: 70px;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+      .road::before,
+      .road::after {
+        content: '';
+        position: absolute;
+        top: 0; bottom: 0;
+        width: 5px;
+        background: #FAC775;
+        border-radius: 4px;
+      }
+      .road::before { left: 10px; }
+      .road::after  { right: 10px; }
+      .lane-marks {
+        display: flex;
+        gap: 14px;
+      }
+      .lane-marks span {
+        width: 10px;
+        height: 28px;
+        background: #FAC775;
+        border-radius: 3px;
+        opacity: 0.85;
+      }
+
+      /* Detour sign */
+      .sign-pole {
+        width: 6px;
+        height: 70px;
+        background: #888780;
+        border-radius: 3px;
+        margin: 0 auto;
+      }
+      .sign-board {
+        background: #E24B4A;
+        border: 3px solid #501313;
+        border-radius: 8px;
+        padding: 0.6rem 1.4rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 0;
+      }
+      .sign-board .arrow {
+        font-size: 1.4rem;
+        color: white;
+      }
+      .sign-board .word {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: white;
+        letter-spacing: 4px;
+      }
+
+      /* Cones */
+      .cones {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-top: -8px;
+        padding: 0 4px;
+      }
+      .cone {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+      }
+      .cone-body {
+        width: 0;
+        height: 0;
+        border-left: 14px solid transparent;
+        border-right: 14px solid transparent;
+        border-bottom: 36px solid #E24B4A;
+        position: relative;
+      }
+      .cone-stripe {
+        position: absolute;
+        bottom: 10px;
+        left: -8px;
+        width: 16px;
+        height: 5px;
+        background: white;
+        border-radius: 2px;
+      }
+      .cone-base {
+        width: 32px;
+        height: 7px;
+        background: #E24B4A;
+        border-radius: 3px;
+        margin-top: -1px;
+      }
+
+      /* Redirect box */
+      .redirect {
+        background: #0d1f3c;
+        border: 1px solid #1a4080;
+        border-radius: 12px;
+        padding: 1.2rem 1.5rem;
+        margin-top: 0.5rem;
+      }
+      .redirect p {
+        font-size: 0.85rem;
+        color: #7b8db0;
+        margin-bottom: 0.5rem;
+      }
+      .redirect a {
+        display: inline-block;
+        font-family: 'Outfit', monospace;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #60a5fa;
+        text-decoration: none;
+        word-break: break-all;
+        transition: color 0.2s;
+      }
+      .redirect a:hover { color: #93c5fd; text-decoration: underline; }
+
+      .go-btn {
+        display: inline-block;
+        margin-top: 1rem;
+        padding: 0.7rem 2rem;
+        background: #1d4ed8;
+        color: white;
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 700;
+        border-radius: 10px;
+        text-decoration: none;
+        letter-spacing: 0.3px;
+        transition: background 0.2s, transform 0.1s;
+      }
+      .go-btn:hover { background: #2563eb; transform: translateY(-1px); }
+      .go-btn:active { transform: translateY(0); }
+
+      .footer-note {
+        margin-top: 2rem;
+        font-size: 0.8rem;
+        color: #4a5568;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div class="card">
+      <h1>🏆 FCC Worldcup 26</h1>
+      <p class="subtitle">We're doing some work behind the scenes — hang tight!</p>
+
+      <div class="illustration">
+        <!-- Sign -->
+        <div style="text-align:center; margin-bottom:0;">
+          <div class="sign-board">
+            <span class="word">DETOUR</span>
+            <span class="arrow">➜</span>
+          </div>
+        </div>
+        <div class="sign-pole"></div>
+
+        <!-- Road -->
+        <div class="road">
+          <div class="lane-marks">
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+
+        <!-- Cones -->
+        <div class="cones">
+          <div class="cone">
+            <div class="cone-body"><div class="cone-stripe"></div></div>
+            <div class="cone-base"></div>
+          </div>
+          <div class="cone">
+            <div class="cone-body"><div class="cone-stripe"></div></div>
+            <div class="cone-base"></div>
+          </div>
+          <div class="cone">
+            <div class="cone-body"><div class="cone-stripe"></div></div>
+            <div class="cone-base"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Redirect -->
+      <div class="redirect">
+        <p>The app has moved to a new address:</p>
+        <a href="https://fcc.18-191-156-236.sslip.io/" target="_blank" rel="noopener noreferrer">
+          https://fcc.18-191-156-236.sslip.io/
+        </a>
+      </div>
+
+      <a class="go-btn" href="https://fcc.18-191-156-236.sslip.io/" target="_blank" rel="noopener noreferrer">
+        Take me there →
+      </a>
+
+      <p class="footer-note">This page will be updated once maintenance is complete.</p>
+    </div>
   </body>
 </html>
+
