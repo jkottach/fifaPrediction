@@ -23,3 +23,9 @@ export function isMatchLive(match: MatchStatusFields, now = Date.now()): boolean
 
   return kickoff <= now;
 }
+
+/** Scheduled and not yet kicked off (includes the prediction-closed window before live). */
+export function isMatchUpcoming(match: MatchStatusFields, now = Date.now()): boolean {
+  if (isMatchCompleted(match) || isMatchLive(match, now)) return false;
+  return normalizeMatchStatus(match.status) === 'scheduled';
+}

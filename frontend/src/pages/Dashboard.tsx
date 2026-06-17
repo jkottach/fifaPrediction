@@ -7,8 +7,7 @@ import { Match, Prediction } from '../types';
 import MatchCard from '../components/MatchCard';
 import TournamentPredictions from '../components/TournamentPredictions';
 import PageHero from '../components/PageHero';
-import { isMatchOpenForPrediction } from '../utils/matchDeadline';
-import { isMatchLive, normalizeMatchStatus } from '../utils/matchStatus';
+import { isMatchLive, isMatchUpcoming, normalizeMatchStatus } from '../utils/matchStatus';
 import { alertError, cardPad, linkAccent, spinner } from '../theme';
 
 interface UserRankInfo {
@@ -179,13 +178,9 @@ const Dashboard: React.FC = () => {
       .sort(sortByKickoff);
   }, [matches, now]);
 
-  const predictableMatches = useMemo(() => {
+  const upcomingMatches = useMemo(() => {
     return [...matches]
-      .filter((m) => {
-        if (isMatchLive(m, now)) return false;
-        if (normalizeMatchStatus(m.status) !== 'scheduled') return false;
-        return isMatchOpenForPrediction(m, now);
-      })
+      .filter((m) => isMatchUpcoming(m, now))
       .sort(sortByKickoff)
       .slice(0, 24);
   }, [matches, now]);
@@ -274,9 +269,9 @@ const Dashboard: React.FC = () => {
               <div className={spinner} />
               <p className="mt-4 text-sm text-slate-600">Loading matches...</p>
             </div>
-          ) : predictableMatches.length > 0 ? (
+          ) : upcomingMatches.length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
-              {predictableMatches.map((match) => {
+              {upcomingMatches.map((match) => {
                 const userPrediction = userPredictions.find(
                   (p) => getPredictionMatchId(p) === match.matchId
                 );
