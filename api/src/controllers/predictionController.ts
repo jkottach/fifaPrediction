@@ -65,16 +65,25 @@ async function listUserPredictions(
       predictions = predictions.filter((p) => p.matchId === String(matchId));
     }
 
+    const matchIds = [...new Set(predictions.map((p) => p.matchId))];
+    const matches = await findMatchesByIds(matchIds);
+    const matchById = new Map(matches.map((m) => [m._id.toString(), m]));
+
     if (options.completedOnly) {
-      const matchIds = [...new Set(predictions.map((p) => p.matchId))];
-      const matches = await findMatchesByIds(matchIds);
       const completedMatchIds = new Set(
         matches.filter((m) => m.status === 'completed').map((m) => m._id.toString())
       );
       predictions = predictions.filter((p) => completedMatchIds.has(p.matchId));
     }
 
-    predictions.sort((a, b) => new Date(b.submittedTime).getTime() - new Date(a.submittedTime).getTime());
+    predictions.sort((a, b) => {
+      const matchA = matchById.get(a.matchId);
+      const matchB = matchById.get(b.matchId);
+      const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
+      const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
+      if (timeB !== timeA) return timeB - timeA;
+      return new Date(b.submittedTime).getTime() - new Date(a.submittedTime).getTime();
+    });
 
     const pageNum = parseInt(page as string, 10);
     const limitNum = parseInt(limit as string, 10);
@@ -82,14 +91,6 @@ async function listUserPredictions(
     const slice = predictions.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
     const populatedPredictions = await attachMatchToPredictions(user, slice);
-
-    populatedPredictions.sort((a, b) => {
-      const matchA = a.matchId as { matchTime?: string | Date } | null;
-      const matchB = b.matchId as { matchTime?: string | Date } | null;
-      const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
-      const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
-      return timeB - timeA;
-    });
 
     res.json({
       predictions: populatedPredictions,
