@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useAzureAuth } from '../services/swaAuth';
@@ -7,6 +7,8 @@ import { Match, Prediction } from '../types';
 import MatchCard from '../components/MatchCard';
 import TournamentPredictions from '../components/TournamentPredictions';
 import PageHero from '../components/PageHero';
+import { isMatchOpenForPrediction } from '../utils/matchDeadline';
+import { isMatchLive, normalizeMatchStatus } from '../utils/matchStatus';
 import { alertError, cardPad, linkAccent, spinner } from '../theme';
 
 interface UserRankInfo {
@@ -15,10 +17,16 @@ interface UserRankInfo {
 }
 
 const defaultRankInfo: UserRankInfo = { rank: '-', totalPoints: 0 };
-const OPEN_MATCHES_LIMIT = 24;
 
 const pickRank = (data: { final?: UserRankInfo; overall?: UserRankInfo } | undefined): UserRankInfo =>
   data?.final ?? data?.overall ?? defaultRankInfo;
+
+const sortByKickoff = (a: Match, b: Match) => {
+  const ta = Date.parse(a.matchTime ?? '');
+  const tb = Date.parse(b.matchTime ?? '');
+  if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+  return (a.sequence ?? 0) - (b.sequence ?? 0);
+};
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -28,6 +36,7 @@ const Dashboard: React.FC = () => {
   const [userPredictions, setUserPredictions] = useState<Prediction[]>([]);
   const [myRank, setMyRank] = useState<UserRankInfo>(defaultRankInfo);
   const [loadError, setLoadError] = useState('');
+  const [now, setNow] = useState(() => Date.now());
   const [showTournamentPredictions, setShowTournamentPredictions] = useState(false);
 
   const getPredictionMatchId = (prediction: Prediction): string =>
@@ -42,28 +51,63 @@ const Dashboard: React.FC = () => {
     loadDashboardData();
   }, [authReady, isLoggedIn, navigate]);
 
+  const refreshLiveMatches = useCallback(async () => {
+    try {
+      const [scheduledRes, ongoingRes] = await Promise.all([
+        apiService.getAllMatches('scheduled', 1, 104),
+        apiService.getAllMatches('ongoing', 1, 20),
+      ]);
+      const scheduled = scheduledRes.data?.matches ?? [];
+      const ongoing = ongoingRes.data?.matches ?? [];
+      setMatches((prev) => {
+        const completed = prev.filter((m) => normalizeMatchStatus(m.status) === 'completed');
+        const byId = new Map<string, Match>();
+        for (const m of [...ongoing, ...scheduled, ...completed]) {
+          byId.set(m.matchId, m);
+        }
+        return [...byId.values()];
+      });
+    } catch (error) {
+      console.error('Failed to refresh live matches:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authReady || !isLoggedIn) return;
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+      void refreshLiveMatches();
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, [authReady, isLoggedIn, refreshLiveMatches]);
+
   const loadDashboardData = async () => {
     setLoading(true);
     setLoadError('');
 
     const errors: string[] = [];
 
-    // Public endpoint first — must not depend on auth headers (Azure SWA can strip them).
-    try {
-      const matchesRes = await apiService.getOpenMatches(1, OPEN_MATCHES_LIMIT);
-      setMatches(matchesRes.data?.matches ?? []);
-    } catch (err) {
-      console.error('Failed to load matches:', err);
-      setMatches([]);
-      errors.push('matches');
-    } finally {
-      setLoading(false);
-    }
-
-    const [predictionsResult, statsResult] = await Promise.allSettled([
+    const [scheduledResult, ongoingResult, predictionsResult, statsResult] = await Promise.allSettled([
+      apiService.getAllMatches('scheduled', 1, 104),
+      apiService.getAllMatches('ongoing', 1, 20),
       apiService.getUserPredictions(1, 100),
       apiService.getUserStats(),
     ]);
+
+    const scheduled = scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
+    const ongoing = ongoingResult.status === 'fulfilled' ? ongoingResult.value.data?.matches ?? [] : [];
+
+    if (scheduledResult.status === 'fulfilled' || ongoingResult.status === 'fulfilled') {
+      const byId = new Map<string, Match>();
+      for (const m of [...ongoing, ...scheduled]) {
+        byId.set(m.matchId, m);
+      }
+      setMatches([...byId.values()]);
+    } else {
+      console.error('Failed to load matches:', scheduledResult.reason ?? ongoingResult.reason);
+      setMatches([]);
+      errors.push('matches');
+    }
 
     if (predictionsResult.status === 'fulfilled') {
       setUserPredictions(predictionsResult.value.data?.predictions ?? []);
@@ -86,6 +130,8 @@ const Dashboard: React.FC = () => {
           : 'Some dashboard data could not be loaded. Please refresh.'
       );
     }
+
+    setLoading(false);
   };
 
   const handlePredictionSubmit = (matchId: string, team1Score: number, team2Score: number) => {
@@ -124,15 +170,22 @@ const Dashboard: React.FC = () => {
       .catch(() => undefined);
   };
 
-  const displayMatches = useMemo(
+  const liveMatches = useMemo(
+    () => [...matches].filter((m) => isMatchLive(m, now)).sort(sortByKickoff),
+    [matches, now]
+  );
+
+  const predictableMatches = useMemo(
     () =>
-      [...matches].sort((a, b) => {
-        const aLive = a.status === 'ongoing' ? 0 : 1;
-        const bLive = b.status === 'ongoing' ? 0 : 1;
-        if (aLive !== bLive) return aLive - bLive;
-        return new Date(a.matchTime).getTime() - new Date(b.matchTime).getTime();
-      }),
-    [matches]
+      [...matches]
+        .filter((m) => {
+          if (isMatchLive(m, now)) return false;
+          if (normalizeMatchStatus(m.status) !== 'scheduled') return false;
+          return isMatchOpenForPrediction(m, now);
+        })
+        .sort(sortByKickoff)
+        .slice(0, 24),
+    [matches, now]
   );
 
   const rankDisplay = myRank.rank === '-' ? '–' : `#${myRank.rank}`;
@@ -185,12 +238,40 @@ const Dashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowTournamentPredictions((open) => !open)}
-                className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition"
+                aria-expanded={showTournamentPredictions}
               >
                 {showTournamentPredictions ? 'Hide' : 'Show'}
               </button>
             </div>
             {showTournamentPredictions && <TournamentPredictions />}
+          </div>
+        )}
+
+        {liveMatches.length > 0 && (
+          <div>
+            <div className="mb-4 flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              </span>
+              <h2 className="font-display text-lg font-bold text-slate-900">Live now</h2>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {liveMatches.map((match) => {
+                const userPrediction = userPredictions.find(
+                  (p) => getPredictionMatchId(p) === match.matchId
+                );
+                return (
+                  <MatchCard
+                    key={match.matchId}
+                    match={match}
+                    userPrediction={userPrediction}
+                    onPredictionSubmit={handlePredictionSubmit}
+                  />
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -202,9 +283,9 @@ const Dashboard: React.FC = () => {
               <div className={spinner} />
               <p className="mt-4 text-sm text-slate-600">Loading matches...</p>
             </div>
-          ) : displayMatches.length > 0 ? (
+          ) : predictableMatches.length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
-              {displayMatches.map((match) => {
+              {predictableMatches.map((match) => {
                 const userPrediction = userPredictions.find(
                   (p) => getPredictionMatchId(p) === match.matchId
                 );

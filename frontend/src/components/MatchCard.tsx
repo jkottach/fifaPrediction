@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Match, Prediction } from '../types';
 import { format } from 'date-fns';
 import { apiService } from '../services/apiService';
+import { getPredictionDeadlineIso, isMatchOpenForPrediction } from '../utils/matchDeadline';
+import { isMatchLive } from '../utils/matchStatus';
 
 interface MatchCardProps {
   match: Match;
@@ -61,18 +63,17 @@ const CountUnit: React.FC<{ value: number; label: string }> = ({ value, label })
 // ── Main component ─────────────────────────────────────────────────────────────
 const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredictionSubmit }) => {
   const isCompleted = match.status === 'completed';
-  const isOngoing   = match.status === 'ongoing';
-  const isPredictionOpen =
-    !isCompleted && !isOngoing && new Date(match.predictionsEndingTime) > new Date();
-  const isLockedReadOnly = !isCompleted && (isOngoing || !isPredictionOpen);
+  const isOngoing = isMatchLive(match);
+  const isPredictionOpen = !isOngoing && !isCompleted && isMatchOpenForPrediction(match);
+  const predictionDeadlineIso = getPredictionDeadlineIso(match) ?? match.predictionsEndingTime;
 
   const [team1Score, setTeam1Score] = useState<number | ''>('');
   const [team2Score, setTeam2Score] = useState<number | ''>('');
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState('');
-  const [submitted, setSubmitted]   = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
-  const countdown = useCountdown(match.predictionsEndingTime);
+  const countdown = useCountdown(predictionDeadlineIso ?? match.matchTime);
 
   useEffect(() => {
     if (userPrediction) {
@@ -136,7 +137,6 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
       className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 hover:border-emerald-400/30 transition-all duration-300 hover:shadow-emerald-900/20"
       style={{ background: 'linear-gradient(160deg, #0f172a 0%, #1a2744 50%, #0c1a1a 100%)' }}
     >
-      {/* Subtle pitch overlay */}
       <div
         className="absolute inset-0 opacity-[0.04] pointer-events-none"
         style={{
@@ -146,7 +146,6 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         }}
       />
 
-      {/* ── Header: tag / round / status ── */}
       <div className="relative z-10 flex items-center justify-between px-4 pt-3 pb-2">
         <span className="text-[10px] font-semibold text-white/50 uppercase tracking-widest truncate max-w-[120px]">
           {match.matchTag || 'Group Stage'}
@@ -162,9 +161,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         </div>
       </div>
 
-      {/* ── Teams + score ── */}
       <div className="relative z-10 flex items-center justify-between px-4 py-3 gap-2">
-        {/* Team 1 */}
         <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
           <Flag src={match.team1Info?.countryLogo} alt={match.team1} />
           <span className="text-white font-bold text-[13px] text-center leading-tight line-clamp-2 max-w-[90px]">
@@ -172,7 +169,6 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
           </span>
         </div>
 
-        {/* Score / Inputs */}
         <div className="flex flex-col items-center gap-1 shrink-0">
           <div className="flex items-center gap-1.5">
             {isCompleted ? (
@@ -185,7 +181,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
                   {match.team2Score ?? 0}
                 </div>
               </>
-            ) : isLockedReadOnly ? (
+            ) : isOngoing ? (
               <>
                 <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-xl">
                   {userPrediction ? userPrediction.team1Score : '–'}
@@ -217,12 +213,12 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
               </>
             )}
           </div>
-          {isLockedReadOnly && (
+          {isOngoing && (
             <span className="text-white/30 text-[9px] uppercase tracking-widest">
               {userPrediction ? 'Your Prediction' : 'No Prediction'}
             </span>
           )}
-          {!isCompleted && !isLockedReadOnly && (
+          {!isCompleted && !isOngoing && (
             <span className="text-white/30 text-[9px] uppercase tracking-widest">
               {isPredictionOpen ? 'Your Prediction' : 'Closed'}
             </span>
@@ -232,7 +228,6 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
           )}
         </div>
 
-        {/* Team 2 */}
         <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
           <Flag src={match.team2Info?.countryLogo} alt={match.team2} />
           <span className="text-white font-bold text-[13px] text-center leading-tight line-clamp-2 max-w-[90px]">
@@ -241,68 +236,60 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         </div>
       </div>
 
-      {/* ── Error message ── */}
       {error && (
         <p className="relative z-10 text-red-400 text-[11px] text-center px-4 -mt-1 mb-1 font-medium">{error}</p>
       )}
 
-      {/* ── Divider ── */}
       <div className="relative z-10 mx-4 border-t border-white/[0.08]" />
 
-      {/* ── Match time + countdown ── */}
       <div className="relative z-10 flex items-start justify-between px-4 py-3 gap-4">
-
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="text-white/35 text-[9px] uppercase tracking-widest">Kick-off</span>
+          <span className="text-white/35 text-[9px] uppercase tracking-widest">
+            {isOngoing ? 'Started' : 'Kick-off'}
+          </span>
           <span className="text-white/80 text-xs font-bold">
             {format(new Date(match.matchTime), 'MMM dd, yyyy · h:mm a')}
           </span>
         </div>
 
-        {/* Countdown or close time */}
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <span className="text-white/35 text-[9px] uppercase tracking-widest text-right">
-            {isOngoing
-              ? 'In progress'
-              : isPredictionOpen
-              ? 'Prediction closes in'
-              : isCompleted
-              ? 'Match ended'
-              : 'Prediction closed'}
-          </span>
-          {isPredictionOpen && countdown ? (
-            <div className="flex items-end gap-1">
-              {countdown.d > 0 && (
-                <>
-                  <CountUnit value={countdown.d} label="d" />
-                  <span className="text-white/30 font-bold text-sm leading-none pb-3">:</span>
-                </>
-              )}
-              <CountUnit value={countdown.h} label="h" />
-              <span className="text-white/30 font-bold text-sm leading-none pb-3">:</span>
-              <CountUnit value={countdown.m} label="m" />
-              <span className="text-white/30 font-bold text-sm leading-none pb-3">:</span>
-              <CountUnit value={countdown.s} label="s" />
-            </div>
-          ) : isOngoing ? (
-            <span className="text-white/40 text-xs font-semibold">Match in progress</span>
-          ) : (
-            <span className="text-white/40 text-xs font-semibold">
-              {format(new Date(match.predictionsEndingTime), 'MMM dd, HH:mm')}
+        {!isOngoing && (
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span className="text-white/35 text-[9px] uppercase tracking-widest text-right">
+              {isPredictionOpen
+                ? 'Prediction closes in'
+                : isCompleted
+                ? 'Match ended'
+                : 'Prediction closed'}
             </span>
-          )}
-        </div>
+            {isPredictionOpen && countdown ? (
+              <div className="flex items-end gap-1">
+                {countdown.d > 0 && (
+                  <>
+                    <CountUnit value={countdown.d} label="d" />
+                    <span className="text-white/30 font-bold text-sm leading-none pb-3">:</span>
+                  </>
+                )}
+                <CountUnit value={countdown.h} label="h" />
+                <span className="text-white/30 font-bold text-sm leading-none pb-3">:</span>
+                <CountUnit value={countdown.m} label="m" />
+                <span className="text-white/30 font-bold text-sm leading-none pb-3">:</span>
+                <CountUnit value={countdown.s} label="s" />
+              </div>
+            ) : (
+              <span className="text-white/40 text-xs font-semibold">
+                {predictionDeadlineIso
+                  ? format(new Date(predictionDeadlineIso), 'MMM dd, h:mm a')
+                  : '—'}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* ── Submit / status button ── */}
       <div className="relative z-10 px-4 pb-4">
         {isOngoing ? (
-          <div className="w-full py-2.5 bg-green-500/15 border border-green-400/30 rounded-xl text-center text-green-300 text-sm font-bold tracking-wide">
-            ● Match Live — predictions locked
-          </div>
-        ) : isLockedReadOnly ? (
           <div className="w-full py-2.5 bg-white/5 border border-white/10 rounded-xl text-center text-white/30 text-sm font-bold tracking-wide">
-            Prediction Closed
+            Match in progress
           </div>
         ) : !isCompleted ? (
           <button
