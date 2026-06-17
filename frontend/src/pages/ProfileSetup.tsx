@@ -82,7 +82,7 @@ const ProfileSetup: React.FC = () => {
       title="Complete your profile"
       subtitle={
         user?.firstName
-          ? `Welcome, ${user.firstName}! Add a few details to get started.`
+          ? `Hello, ${user.firstName}! Add a few details to get started.`
           : 'Add a few details to get started.'
       }
     >

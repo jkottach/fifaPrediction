@@ -190,7 +190,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-full bg-slate-50">
       <PageHero
-        title={`Welcome, ${user?.firstName ?? 'Player'}!`}
+        title={`Hello, ${user?.firstName ?? 'Player'}!`}
         subtitle="Predict upcoming matches and climb the leaderboard"
         badge="Dashboard"
       />
