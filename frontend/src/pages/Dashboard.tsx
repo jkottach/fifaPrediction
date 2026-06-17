@@ -28,6 +28,17 @@ const sortByKickoff = (a: Match, b: Match) => {
   return (a.sequence ?? 0) - (b.sequence ?? 0);
 };
 
+/** Merge match lists; later sources win so ongoing/open-for-prediction data overrides stale scheduled copies. */
+const mergeMatches = (...groups: Match[][]): Match[] => {
+  const byId = new Map<string, Match>();
+  for (const group of groups) {
+    for (const m of group) {
+      byId.set(m.matchId, m);
+    }
+  }
+  return [...byId.values()];
+};
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { isLoggedIn, user, authReady } = useAuth();
@@ -53,19 +64,28 @@ const Dashboard: React.FC = () => {
 
   const refreshLiveMatches = useCallback(async () => {
     try {
-      const [scheduledRes, ongoingRes] = await Promise.all([
-        apiService.getAllMatches('scheduled', 1, 104),
+      const [openResult, scheduledResult, ongoingResult] = await Promise.allSettled([
+        apiService.getOpenMatches(1, 50),
+        apiService.getAllMatches('scheduled', 1, 100),
         apiService.getAllMatches('ongoing', 1, 20),
       ]);
-      const scheduled = scheduledRes.data?.matches ?? [];
-      const ongoing = ongoingRes.data?.matches ?? [];
+
+      const scheduled =
+        scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
+      const ongoing = ongoingResult.status === 'fulfilled' ? ongoingResult.value.data?.matches ?? [] : [];
+      const open = openResult.status === 'fulfilled' ? openResult.value.data?.matches ?? [] : [];
+
+      if (
+        openResult.status !== 'fulfilled' &&
+        scheduledResult.status !== 'fulfilled' &&
+        ongoingResult.status !== 'fulfilled'
+      ) {
+        return;
+      }
+
       setMatches((prev) => {
         const completed = prev.filter((m) => normalizeMatchStatus(m.status) === 'completed');
-        const byId = new Map<string, Match>();
-        for (const m of [...ongoing, ...scheduled, ...completed]) {
-          byId.set(m.matchId, m);
-        }
-        return [...byId.values()];
+        return mergeMatches(scheduled, open, ongoing, completed);
       });
     } catch (error) {
       console.error('Failed to refresh live matches:', error);
@@ -87,24 +107,31 @@ const Dashboard: React.FC = () => {
 
     const errors: string[] = [];
 
-    const [scheduledResult, ongoingResult, predictionsResult, statsResult] = await Promise.allSettled([
-      apiService.getAllMatches('scheduled', 1, 104),
-      apiService.getAllMatches('ongoing', 1, 20),
-      apiService.getUserPredictions(1, 100),
-      apiService.getUserStats(),
-    ]);
+    const [openResult, scheduledResult, ongoingResult, predictionsResult, statsResult] =
+      await Promise.allSettled([
+        apiService.getOpenMatches(1, 50),
+        apiService.getAllMatches('scheduled', 1, 100),
+        apiService.getAllMatches('ongoing', 1, 20),
+        apiService.getUserPredictions(1, 100),
+        apiService.getUserStats(),
+      ]);
 
-    const scheduled = scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
+    const scheduled =
+      scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
     const ongoing = ongoingResult.status === 'fulfilled' ? ongoingResult.value.data?.matches ?? [] : [];
+    const open = openResult.status === 'fulfilled' ? openResult.value.data?.matches ?? [] : [];
 
-    if (scheduledResult.status === 'fulfilled' || ongoingResult.status === 'fulfilled') {
-      const byId = new Map<string, Match>();
-      for (const m of [...ongoing, ...scheduled]) {
-        byId.set(m.matchId, m);
-      }
-      setMatches([...byId.values()]);
+    if (
+      openResult.status === 'fulfilled' ||
+      scheduledResult.status === 'fulfilled' ||
+      ongoingResult.status === 'fulfilled'
+    ) {
+      setMatches(mergeMatches(scheduled, open, ongoing));
     } else {
-      console.error('Failed to load matches:', scheduledResult.reason ?? ongoingResult.reason);
+      console.error(
+        'Failed to load matches:',
+        openResult.reason ?? scheduledResult.reason ?? ongoingResult.reason
+      );
       setMatches([]);
       errors.push('matches');
     }
