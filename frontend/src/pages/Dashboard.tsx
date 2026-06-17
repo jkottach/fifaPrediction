@@ -7,7 +7,10 @@ import { Match, Prediction } from '../types';
 import MatchCard from '../components/MatchCard';
 import TournamentPredictions from '../components/TournamentPredictions';
 import PageHero from '../components/PageHero';
-import { isMatchOpenForPrediction } from '../utils/matchDeadline';
+import {
+  isLockedAwaitingKickoff,
+  isMatchOpenForPrediction,
+} from '../utils/matchDeadline';
 import { isMatchLive, normalizeMatchStatus } from '../utils/matchStatus';
 import { alertError, cardPad, linkAccent, spinner } from '../theme';
 
@@ -208,7 +211,9 @@ const Dashboard: React.FC = () => {
         .filter((m) => {
           if (isMatchLive(m, now)) return false;
           if (normalizeMatchStatus(m.status) !== 'scheduled') return false;
-          return isMatchOpenForPrediction(m, now);
+          return (
+            isMatchOpenForPrediction(m, now) || isLockedAwaitingKickoff(m, now)
+          );
         })
         .sort(sortByKickoff)
         .slice(0, 24),
