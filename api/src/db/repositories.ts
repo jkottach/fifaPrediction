@@ -323,7 +323,13 @@ export async function listLiveMatchesWithPredictions(): Promise<
       });
     }
 
-    predictions.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    predictions.sort((a, b) => {
+      const scoreDiff = b.team1Score - a.team1Score;
+      if (scoreDiff !== 0) return scoreDiff;
+      const team2Diff = b.team2Score - a.team2Score;
+      if (team2Diff !== 0) return team2Diff;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
 
     results.push({ match, predictions });
   }
