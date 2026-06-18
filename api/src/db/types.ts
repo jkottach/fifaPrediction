@@ -8,6 +8,10 @@ export interface EmbeddedPrediction {
   points: number;
   comment?: string | null;
   submittedTime: Date;
+  /** Cumulative points after this match was finalized. */
+  cumulativeTotalPoints?: number;
+  /** Overall leaderboard rank after this match was finalized. */
+  overallRank?: number | null;
 }
 
 /** Group letter → winning nation `teamId` (e.g. `{ A: "MEX", B: "CAN" }`). */

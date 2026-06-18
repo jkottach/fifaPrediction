@@ -337,6 +337,104 @@ export async function listLiveMatchesWithPredictions(): Promise<
   return results;
 }
 
+function denseOverallRankFromTotals(
+  totals: Array<{ userId: string; total: number }>
+): Map<string, number | null> {
+  const sorted = [...totals].sort((a, b) => b.total - a.total);
+  const rankByUserId = new Map<string, number | null>();
+  let denseRank = 0;
+  let previousPoints: number | null = null;
+
+  for (const row of sorted) {
+    if (row.total <= 0) {
+      rankByUserId.set(row.userId, null);
+      continue;
+    }
+    if (previousPoints === null || row.total !== previousPoints) {
+      denseRank += 1;
+      previousPoints = row.total;
+    }
+    rankByUserId.set(row.userId, denseRank);
+  }
+
+  return rankByUserId;
+}
+
+/** Write cumulative total + overall rank on each user's prediction for a completed match milestone. */
+export async function applyPredictionSnapshotsAtMilestone(
+  matchId: string,
+  completedMatchIds: Set<string>
+): Promise<number> {
+  const allUsers = await getUsersCollection().find(activeUserFilter).toArray();
+
+  const totals = allUsers.map((user) => ({
+    userId: user._id.toString(),
+    total: user.predictions
+      .filter((p) => completedMatchIds.has(p.matchId))
+      .reduce((sum, p) => sum + (p.points ?? 0), 0),
+  }));
+
+  const rankByUserId = denseOverallRankFromTotals(totals);
+  const totalByUserId = new Map(totals.map((t) => [t.userId, t.total]));
+
+  let updated = 0;
+
+  for (const user of allUsers) {
+    const idx = user.predictions.findIndex((p) => p.matchId === matchId);
+    if (idx < 0) continue;
+
+    const userId = user._id.toString();
+    const predictions = [...user.predictions];
+    const cumulativeTotalPoints = totalByUserId.get(userId) ?? 0;
+    const overallRank = rankByUserId.get(userId) ?? null;
+
+    predictions[idx] = {
+      ...predictions[idx],
+      cumulativeTotalPoints,
+      overallRank,
+    };
+
+    await updateUserById(userId, {
+      predictions,
+      totalPoints: cumulativeTotalPoints,
+    });
+    updated += 1;
+  }
+
+  return updated;
+}
+
+/** Replay completed matches in order and persist snapshot fields on embedded predictions. */
+export async function backfillAllPredictionSnapshots(): Promise<{
+  matchesProcessed: number;
+  predictionsUpdated: number;
+}> {
+  const completedMatches = await getMatchesCollection()
+    .find({ status: 'completed' })
+    .sort({ matchTime: 1, sequence: 1 })
+    .toArray();
+
+  const completedMatchIds = new Set<string>();
+  let predictionsUpdated = 0;
+
+  for (const match of completedMatches) {
+    const matchId = match._id.toString();
+    completedMatchIds.add(matchId);
+    predictionsUpdated += await applyPredictionSnapshotsAtMilestone(matchId, completedMatchIds);
+  }
+
+  return { matchesProcessed: completedMatches.length, predictionsUpdated };
+}
+
+export async function applySnapshotsAfterMatchFinalized(matchId: string): Promise<void> {
+  const completedMatches = await getMatchesCollection()
+    .find({ status: 'completed' })
+    .sort({ matchTime: 1, sequence: 1 })
+    .toArray();
+  const completedMatchIds = new Set(completedMatches.map((m) => m._id.toString()));
+  await applyPredictionSnapshotsAtMilestone(matchId, completedMatchIds);
+}
+
 export async function listUsersByTotalPoints(limit: number): Promise<UserDocument[]> {
   return getUsersCollection()
     .find(activeUserFilter)
@@ -570,6 +668,8 @@ export async function attachMatchToPredictions(
       points: p.points,
       comment: p.comment,
       submittedTime: p.submittedTime,
+      cumulativeTotalPoints: p.cumulativeTotalPoints,
+      overallRank: p.overallRank,
     };
   });
 }

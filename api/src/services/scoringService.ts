@@ -3,6 +3,7 @@ import {
   findUsersWithPredictionForMatch,
   updateMatchById,
   updatePredictionPointsForMatch,
+  applySnapshotsAfterMatchFinalized,
 } from '../db/repositories';
 
 interface ScoringCriteria {
@@ -69,6 +70,8 @@ export const processMatchResults = async (matchId: string) => {
 
     await updatePredictionPointsForMatch(user._id.toString(), matchId, points);
   }
+
+  await applySnapshotsAfterMatchFinalized(matchId);
 };
 
 export const finalizeMatchScores = async (

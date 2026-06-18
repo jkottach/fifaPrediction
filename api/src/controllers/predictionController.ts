@@ -188,8 +188,48 @@ export const getUserPredictionsFromResults = async (req: AuthRequest, res: Respo
     const total = completedPredictions.length;
     const slice = completedPredictions.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
+    const chronoSorted = [...completedPredictions].sort((a, b) => {
+      const matchA = a.matchId as { matchTime?: string | Date } | null;
+      const matchB = b.matchId as { matchTime?: string | Date } | null;
+      const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
+      const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
+      return timeA - timeB;
+    });
+
+    let runningTotal = 0;
+    const cumulativeFallbackById = new Map<string, number>();
+    for (const prediction of chronoSorted) {
+      runningTotal += prediction.points ?? 0;
+      cumulativeFallbackById.set(String(prediction.id), runningTotal);
+    }
+
+    let previousRank: number | null = null;
+    const previousRankByPredictionId = new Map<string, number | null>();
+    for (const prediction of chronoSorted) {
+      const predictionId = String(prediction.id);
+      previousRankByPredictionId.set(predictionId, previousRank);
+      const currentRank =
+        (prediction as { overallRank?: number | null }).overallRank ?? null;
+      if (currentRank != null) {
+        previousRank = currentRank;
+      }
+    }
+
+    const predictionsWithMeta = slice.map((prediction) => {
+      const predictionId = String(prediction.id);
+      const storedTotal = (prediction as { cumulativeTotalPoints?: number }).cumulativeTotalPoints;
+      const storedRank = (prediction as { overallRank?: number | null }).overallRank;
+
+      return {
+        ...prediction,
+        totalPoints: storedTotal ?? cumulativeFallbackById.get(predictionId) ?? 0,
+        overallRank: storedRank ?? null,
+        previousOverallRank: previousRankByPredictionId.get(predictionId) ?? null,
+      };
+    });
+
     res.json({
-      predictions: slice,
+      predictions: predictionsWithMeta,
       pagination: {
         total,
         page: pageNum,

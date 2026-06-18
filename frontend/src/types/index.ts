@@ -81,6 +81,10 @@ export interface Prediction {
   submittedTime: string;
   points: number;
   comment?: string;
+  cumulativeTotalPoints?: number;
+  totalPoints?: number;
+  overallRank?: number | null;
+  previousOverallRank?: number | null;
   historicRank?: {
     finalRank: number;
     dailyRank: number;

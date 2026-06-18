@@ -9,6 +9,13 @@ import { format } from 'date-fns';
 
 type ViewMode = 'mine' | 'latest-top';
 
+const statCell =
+  'rounded-lg border border-slate-100 bg-slate-50 px-1.5 py-2 text-center';
+const statLabel =
+  'mb-0.5 text-[9px] font-semibold leading-tight text-slate-500';
+const statValue = 'font-display text-sm font-bold leading-tight text-slate-900 tabular-nums';
+const statValueMono = `font-mono text-sm font-bold leading-tight text-slate-900 tabular-nums`;
+
 const MyPredictions: React.FC = () => {
   const [view, setView] = useState<ViewMode>('mine');
   const [predictions, setPredictions] = useState<Prediction[]>([]);
@@ -133,9 +140,7 @@ const MyPredictions: React.FC = () => {
             </div>
           ) : !latestMatch ? (
             <div className={`${cardPad} py-12 text-center`}>
-              <p className="text-sm font-medium text-slate-600">
-                No finished matches yet.
-              </p>
+              <p className="text-sm font-medium text-slate-600">No finished matches yet.</p>
             </div>
           ) : (
             <>
@@ -218,43 +223,40 @@ const MyPredictions: React.FC = () => {
                 const pred1 = prediction.team1PredictedScore ?? prediction.team1Score;
                 const pred2 = prediction.team2PredictedScore ?? prediction.team2Score;
                 const points = getPoints(prediction);
+                const rank = prediction.overallRank;
+                const previousRank = prediction.previousOverallRank;
+                const rankTrend =
+                  rank != null && previousRank != null && rank !== previousRank
+                    ? rank < previousRank
+                      ? 'up'
+                      : 'down'
+                    : null;
 
                 return (
                   <article key={prediction.id ?? prediction._id} className={cardPad}>
-                    <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-display text-[15px] font-bold text-slate-900">
-                          {team1Name} vs {team2Name}
-                        </h3>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {typeof match === 'object' &&
-                          match !== null &&
-                          match.matchTime
-                            ? format(new Date(match.matchTime), 'MMM dd, yyyy · HH:mm')
-                            : '—'}
-                        </p>
-                      </div>
-                      {isCompleted ? (
-                        <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">
-                          Done
-                        </span>
-                      ) : (
-                        <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800">
-                          Pending
-                        </span>
-                      )}
+                    <div className="mb-4 border-b border-slate-100 pb-4">
+                      <h3 className="font-display text-[15px] font-bold text-slate-900">
+                        {team1Name} vs {team2Name}
+                      </h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {typeof match === 'object' &&
+                        match !== null &&
+                        match.matchTime
+                          ? format(new Date(match.matchTime), 'MMM dd, yyyy · HH:mm')
+                          : '—'}
+                      </p>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-center">
-                        <p className="mb-1 text-[10px] font-semibold text-slate-500">Prediction</p>
-                        <p className="font-mono text-lg font-bold text-slate-900">
+                    <div className="grid grid-cols-5 gap-1.5">
+                      <div className={statCell}>
+                        <p className={statLabel}>Prediction</p>
+                        <p className={statValueMono}>
                           {pred1 != null && pred2 != null ? `${pred1} - ${pred2}` : '—'}
                         </p>
                       </div>
-                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-center">
-                        <p className="mb-1 text-[10px] font-semibold text-slate-500">Actual</p>
-                        <p className="font-mono text-lg font-bold text-slate-700">
+                      <div className={statCell}>
+                        <p className={statLabel}>Actual</p>
+                        <p className={`${statValueMono} text-slate-700`}>
                           {isCompleted &&
                           typeof match === 'object' &&
                           match !== null
@@ -262,11 +264,30 @@ const MyPredictions: React.FC = () => {
                             : '—'}
                         </p>
                       </div>
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center">
-                        <p className="mb-1 text-[10px] font-bold text-emerald-700">Points</p>
-                        <p className="font-display text-lg font-bold text-emerald-600">
-                          {points != null ? points : '—'}
+                      <div className={statCell}>
+                        <p className={statLabel}>Points</p>
+                        <p className={statValue}>{points != null ? points : '—'}</p>
+                      </div>
+                      <div className={statCell}>
+                        <p className={statLabel}>Total pts</p>
+                        <p className={statValue}>
+                          {prediction.totalPoints != null ? prediction.totalPoints : '—'}
                         </p>
+                      </div>
+                      <div className={statCell}>
+                        <p className={statLabel}>Rank</p>
+                        <div className={`flex items-center justify-center gap-0.5 ${statValue}`}>
+                          {rankTrend === 'up' ? (
+                            <span className="text-emerald-600" aria-label="Rank improved">
+                              ↑
+                            </span>
+                          ) : rankTrend === 'down' ? (
+                            <span className="text-red-500" aria-label="Rank dropped">
+                              ↓
+                            </span>
+                          ) : null}
+                          <span>{rank != null ? rank : '—'}</span>
+                        </div>
                       </div>
                     </div>
                   </article>
