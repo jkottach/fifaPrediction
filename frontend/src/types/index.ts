@@ -105,6 +105,20 @@ export interface MatchEarnerEntry {
   team2Score: number;
 }
 
+export interface LiveMatchPredictionEntry {
+  userId: string;
+  name: string;
+  team1Score: number;
+  team2Score: number;
+  submittedTime: string;
+  comment?: string | null;
+}
+
+export interface LiveMatchPredictionsGroup {
+  match: Match;
+  predictions: LiveMatchPredictionEntry[];
+}
+
 export interface AuthState {
   token: string | null;
   user: User | null;

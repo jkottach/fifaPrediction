@@ -10,6 +10,7 @@ import {
   getEnrichedMatch,
   getEnrichedMatches,
   listMatches,
+  listLiveMatchesWithPredictions,
   listTeamsForPicker,
   listTopEarnersForMatch,
   resolveTeamInfoForMatch,
@@ -108,6 +109,43 @@ export const getLatestCompletedMatchTopEarners = async (req: AuthRequest, res: R
       path: req.path,
     });
     res.status(errorDetails.statusCode || 500).json({ error: 'Failed to fetch latest match top earners' });
+  }
+};
+
+export const getLiveMatchPredictions = async (_req: AuthRequest, res: Response) => {
+  try {
+    const groups = await listLiveMatchesWithPredictions();
+
+    const matches = await Promise.all(
+      groups.map(async ({ match, predictions }) => {
+        let enrichedMatch;
+        try {
+          enrichedMatch = await getEnrichedMatch(match);
+        } catch {
+          enrichedMatch = formatMatchForApi(match);
+        }
+
+        return {
+          match: enrichedMatch,
+          predictions: predictions.map((p) => ({
+            userId: p.userId,
+            name: p.name,
+            team1Score: p.team1Score,
+            team2Score: p.team2Score,
+            submittedTime: p.submittedTime,
+            ...(p.comment ? { comment: p.comment } : {}),
+          })),
+        };
+      })
+    );
+
+    res.json({ matches });
+  } catch (error) {
+    const errorDetails = logger.error('getLiveMatchPredictions', error, {
+      method: 'GET',
+      path: '/matches/live/predictions',
+    });
+    res.status(errorDetails.statusCode || 500).json({ error: 'Failed to fetch live match predictions' });
   }
 };
 

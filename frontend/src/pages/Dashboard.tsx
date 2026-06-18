@@ -3,8 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useAzureAuth } from '../services/swaAuth';
 import { apiService } from '../services/apiService';
-import { Match, Prediction } from '../types';
+import { Match, Prediction, LiveMatchPredictionEntry } from '../types';
 import MatchCard from '../components/MatchCard';
+import LiveMatchPredictionsList from '../components/LiveMatchPredictionsList';
 import TournamentPredictions from '../components/TournamentPredictions';
 import PageHero from '../components/PageHero';
 import {
@@ -52,6 +53,21 @@ const Dashboard: React.FC = () => {
   const [loadError, setLoadError] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [showTournamentPredictions, setShowTournamentPredictions] = useState(false);
+  const [livePredictionsByMatchId, setLivePredictionsByMatchId] = useState<
+    Record<string, LiveMatchPredictionEntry[]>
+  >({});
+
+  const applyLivePredictionsResponse = (data: {
+    matches?: Array<{ match: Match; predictions: LiveMatchPredictionEntry[] }>;
+  }) => {
+    const byId: Record<string, LiveMatchPredictionEntry[]> = {};
+    for (const group of data.matches ?? []) {
+      if (group.match?.matchId) {
+        byId[group.match.matchId] = group.predictions ?? [];
+      }
+    }
+    setLivePredictionsByMatchId(byId);
+  };
 
   const getPredictionMatchId = (prediction: Prediction): string =>
     typeof prediction.matchId === 'string' ? prediction.matchId : prediction.matchId.matchId;
@@ -67,16 +83,22 @@ const Dashboard: React.FC = () => {
 
   const refreshLiveMatches = useCallback(async () => {
     try {
-      const [openResult, scheduledResult, ongoingResult] = await Promise.allSettled([
-        apiService.getOpenMatches(1, 50),
-        apiService.getAllMatches('scheduled', 1, 100),
-        apiService.getAllMatches('ongoing', 1, 20),
-      ]);
+      const [openResult, scheduledResult, ongoingResult, livePredictionsResult] =
+        await Promise.allSettled([
+          apiService.getOpenMatches(1, 50),
+          apiService.getAllMatches('scheduled', 1, 100),
+          apiService.getAllMatches('ongoing', 1, 20),
+          apiService.getLiveMatchPredictions(),
+        ]);
 
       const scheduled =
         scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
       const ongoing = ongoingResult.status === 'fulfilled' ? ongoingResult.value.data?.matches ?? [] : [];
       const open = openResult.status === 'fulfilled' ? openResult.value.data?.matches ?? [] : [];
+
+      if (livePredictionsResult.status === 'fulfilled') {
+        applyLivePredictionsResponse(livePredictionsResult.value.data);
+      }
 
       if (
         openResult.status !== 'fulfilled' &&
@@ -110,13 +132,14 @@ const Dashboard: React.FC = () => {
 
     const errors: string[] = [];
 
-    const [openResult, scheduledResult, ongoingResult, predictionsResult, statsResult] =
+    const [openResult, scheduledResult, ongoingResult, predictionsResult, statsResult, livePredictionsResult] =
       await Promise.allSettled([
         apiService.getOpenMatches(1, 50),
         apiService.getAllMatches('scheduled', 1, 100),
         apiService.getAllMatches('ongoing', 1, 20),
         apiService.getUserPredictions(1, 100),
         apiService.getUserStats(),
+        apiService.getLiveMatchPredictions(),
       ]);
 
     const scheduled =
@@ -151,6 +174,12 @@ const Dashboard: React.FC = () => {
     } else {
       console.error('Failed to load stats:', statsResult.reason);
       errors.push('rank');
+    }
+
+    if (livePredictionsResult.status === 'fulfilled') {
+      applyLivePredictionsResponse(livePredictionsResult.value.data);
+    } else {
+      console.error('Failed to load live predictions:', livePredictionsResult.reason);
     }
 
     if (errors.length > 0) {
@@ -294,13 +323,23 @@ const Dashboard: React.FC = () => {
                 const userPrediction = userPredictions.find(
                   (p) => getPredictionMatchId(p) === match.matchId
                 );
+                const showCommunityPicks =
+                  isMatchLive(match, now) && !isMatchOpenForPrediction(match, now);
                 return (
-                  <MatchCard
-                    key={match.matchId}
-                    match={match}
-                    userPrediction={userPrediction}
-                    onPredictionSubmit={handlePredictionSubmit}
-                  />
+                  <div key={match.matchId} className="space-y-3">
+                    <MatchCard
+                      match={match}
+                      userPrediction={userPrediction}
+                      onPredictionSubmit={handlePredictionSubmit}
+                    />
+                    {showCommunityPicks ? (
+                      <LiveMatchPredictionsList
+                        match={match}
+                        predictions={livePredictionsByMatchId[match.matchId] ?? []}
+                        currentUserId={user?.userId}
+                      />
+                    ) : null}
+                  </div>
                 );
               })}
             </div>

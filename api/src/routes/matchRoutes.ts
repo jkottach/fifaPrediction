@@ -9,6 +9,7 @@ const router = Router();
 router.get('/', matchController.getAllMatches);
 router.get('/teams', matchController.getAllTeams);
 router.get('/latest-completed/top-earners', matchController.getLatestCompletedMatchTopEarners);
+router.get('/live/predictions', authMiddleware, matchController.getLiveMatchPredictions);
 router.get('/:matchId', matchController.getMatchById);
 
 // Admin routes

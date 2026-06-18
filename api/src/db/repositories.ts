@@ -9,6 +9,7 @@ import type {
   UserDocument,
 } from './types';
 import { HARDCODED_GROUP_STAGE } from '../constants/tournamentTeams';
+import { canRevealLivePredictions } from '../utils/matchStatus';
 import {
   enrichMatchWithTeams,
   isPickableNationTeamId,
@@ -268,6 +269,66 @@ export async function listTopEarnersForMatch(
   });
 
   return ranked.slice(0, limit);
+}
+
+export interface LiveMatchPredictionRow {
+  userId: string;
+  name: string;
+  team1Score: number;
+  team2Score: number;
+  submittedTime: Date;
+  comment?: string | null;
+}
+
+export async function listLiveMatchesWithPredictions(): Promise<
+  Array<{ match: MatchDocument; predictions: LiveMatchPredictionRow[] }>
+> {
+  const now = new Date();
+  const nowMs = now.getTime();
+
+  const candidates = await getMatchesCollection()
+    .find({
+      status: { $ne: 'completed' },
+      $or: [{ status: 'ongoing' }, { matchTime: { $lte: now } }],
+    })
+    .sort({ matchTime: 1 })
+    .toArray();
+
+  const results: Array<{ match: MatchDocument; predictions: LiveMatchPredictionRow[] }> = [];
+
+  for (const match of candidates) {
+    if (!canRevealLivePredictions(match, nowMs)) continue;
+
+    const matchId = match._id.toString();
+    const users = await getUsersCollection()
+      .find({
+        ...activeUserFilter,
+        'predictions.matchId': matchId,
+      })
+      .toArray();
+
+    const predictions: LiveMatchPredictionRow[] = [];
+
+    for (const user of users) {
+      const pred = user.predictions.find((p) => p.matchId === matchId);
+      if (!pred) continue;
+
+      predictions.push({
+        userId: user._id.toString(),
+        name: leaderboardDisplayName(user),
+        team1Score: pred.team1Score,
+        team2Score: pred.team2Score,
+        submittedTime: pred.submittedTime,
+        ...(pred.comment ? { comment: pred.comment } : {}),
+      });
+    }
+
+    predictions.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+    results.push({ match, predictions });
+  }
+
+  return results;
 }
 
 export async function listUsersByTotalPoints(limit: number): Promise<UserDocument[]> {

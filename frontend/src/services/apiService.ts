@@ -165,6 +165,10 @@ class ApiService {
       skipAuthRedirect: true,
     } as AuthRequestConfig);
   }
+
+  getLiveMatchPredictions() {
+    return this.client.get('/matches/live/predictions');
+  }
 }
 
 export const apiService = new ApiService();
