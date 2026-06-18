@@ -73,10 +73,12 @@ const LiveMatchPredictionsList: React.FC<LiveMatchPredictionsListProps> = ({
       {expanded && (
         <div className="relative z-10 border-t border-white/10">
           {topScoreline && topScoreline.count > 1 && (
-            <p className="px-4 py-2 text-xs text-white/50 bg-white/5 border-b border-white/10">
-              Most picked: {topScoreline.team1Score} – {topScoreline.team2Score} ({topScoreline.count}{' '}
-              {topScoreline.count === 1 ? 'person' : 'people'})
-            </p>
+            <div className="flex items-center justify-between gap-4 px-4 py-2 text-xs text-white/50 bg-white/5 border-b border-white/10">
+              <span>
+                Most picked: {topScoreline.team1Score} – {topScoreline.team2Score}
+              </span>
+              <span className="shrink-0 tabular-nums">({topScoreline.count})</span>
+            </div>
           )}
 
           {predictions.length > 0 ? (
