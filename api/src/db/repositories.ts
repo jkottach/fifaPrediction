@@ -435,6 +435,40 @@ export async function applySnapshotsAfterMatchFinalized(matchId: string): Promis
   await applyPredictionSnapshotsAtMilestone(matchId, completedMatchIds);
 }
 
+/** Compute overall rank after each completed match (read-time fallback when snapshots are missing). */
+export async function computeOverallRankByPredictionId(
+  userId: string
+): Promise<Map<string, number | null>> {
+  const completedMatches = await getMatchesCollection()
+    .find({ status: 'completed' })
+    .sort({ matchTime: 1, sequence: 1 })
+    .toArray();
+
+  const allUsers = await getUsersCollection().find(activeUserFilter).toArray();
+  const completedMatchIds = new Set<string>();
+  const rankByPredictionId = new Map<string, number | null>();
+
+  for (const match of completedMatches) {
+    const matchId = match._id.toString();
+    completedMatchIds.add(matchId);
+
+    const totals = allUsers.map((user) => ({
+      userId: user._id.toString(),
+      total: user.predictions
+        .filter((p) => completedMatchIds.has(p.matchId))
+        .reduce((sum, p) => sum + (p.points ?? 0), 0),
+    }));
+
+    const rankByUserId = denseOverallRankFromTotals(totals);
+    const user = allUsers.find((u) => u._id.toString() === userId);
+    if (user?.predictions.some((p) => p.matchId === matchId)) {
+      rankByPredictionId.set(`${userId}_${matchId}`, rankByUserId.get(userId) ?? null);
+    }
+  }
+
+  return rankByPredictionId;
+}
+
 export async function listUsersByTotalPoints(limit: number): Promise<UserDocument[]> {
   return getUsersCollection()
     .find(activeUserFilter)

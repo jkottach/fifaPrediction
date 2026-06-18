@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import { logger } from '../lib/logger';
 import {
   attachMatchToPredictions,
+  computeOverallRankByPredictionId,
   findMatchById,
   findUserById,
   updateUserById,
@@ -203,13 +204,25 @@ export const getUserPredictionsFromResults = async (req: AuthRequest, res: Respo
       cumulativeFallbackById.set(String(prediction.id), runningTotal);
     }
 
+    const needsRankFallback = completedPredictions.some(
+      (p) => (p as { overallRank?: number | null }).overallRank == null
+    );
+    const rankFallback = needsRankFallback
+      ? await computeOverallRankByPredictionId(userId)
+      : new Map<string, number | null>();
+
+    const resolveRank = (predictionId: string, stored?: number | null) =>
+      stored ?? rankFallback.get(predictionId) ?? null;
+
     let previousRank: number | null = null;
     const previousRankByPredictionId = new Map<string, number | null>();
     for (const prediction of chronoSorted) {
       const predictionId = String(prediction.id);
       previousRankByPredictionId.set(predictionId, previousRank);
-      const currentRank =
-        (prediction as { overallRank?: number | null }).overallRank ?? null;
+      const currentRank = resolveRank(
+        predictionId,
+        (prediction as { overallRank?: number | null }).overallRank
+      );
       if (currentRank != null) {
         previousRank = currentRank;
       }
@@ -219,11 +232,12 @@ export const getUserPredictionsFromResults = async (req: AuthRequest, res: Respo
       const predictionId = String(prediction.id);
       const storedTotal = (prediction as { cumulativeTotalPoints?: number }).cumulativeTotalPoints;
       const storedRank = (prediction as { overallRank?: number | null }).overallRank;
+      const overallRank = resolveRank(predictionId, storedRank);
 
       return {
         ...prediction,
         totalPoints: storedTotal ?? cumulativeFallbackById.get(predictionId) ?? 0,
-        overallRank: storedRank ?? null,
+        overallRank,
         previousOverallRank: previousRankByPredictionId.get(predictionId) ?? null,
       };
     });
