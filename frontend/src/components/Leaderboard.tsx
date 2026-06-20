@@ -7,6 +7,12 @@ interface LeaderboardProps {
   title: string;
 }
 
+const rankColorClass = (rankTrend?: LeaderboardEntry['rankTrend']) => {
+  if (rankTrend === 'up') return 'text-emerald-600';
+  if (rankTrend === 'down') return 'text-red-500';
+  return 'text-slate-900';
+};
+
 const Leaderboard: React.FC<LeaderboardProps> = ({ entries, title }) => {
   const medal = (rank: number) => {
     if (rank === 1) return '🥇';
@@ -30,8 +36,10 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ entries, title }) => {
             }`}
           >
             <div className="flex min-w-0 items-center gap-3">
-              <span className="w-10 shrink-0 font-display font-bold text-slate-900">
-                {medal(entry.rank) || `#${entry.rank}`}
+              <span
+                className={`w-10 shrink-0 font-display font-bold ${rankColorClass(entry.rankTrend)}`}
+              >
+                {medal(entry.rank) || entry.rank}
               </span>
               <p className="truncate font-medium text-slate-900">{entry.name}</p>
             </div>

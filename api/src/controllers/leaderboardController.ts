@@ -2,9 +2,11 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../lib/logger';
 import {
+  computeRankTrendAfterLastGame,
   countDistinctPointTiersAhead,
   findUserById,
   listUsersByTotalPoints,
+  type RankTrend,
 } from '../db/repositories';
 import { formatUserId } from '../db/helpers';
 import type { UserDocument } from '../db/types';
@@ -13,7 +15,10 @@ function getLeaderboardName(user: UserDocument): string {
   return `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email || 'User';
 }
 
-function buildLeaderboardEntries(users: Awaited<ReturnType<typeof listUsersByTotalPoints>>) {
+function buildLeaderboardEntries(
+  users: Awaited<ReturnType<typeof listUsersByTotalPoints>>,
+  rankTrendByUserId: Map<string, RankTrend | null>
+) {
   let denseRank = 0;
   let previousPoints: number | null = null;
 
@@ -34,12 +39,15 @@ function buildLeaderboardEntries(users: Awaited<ReturnType<typeof listUsersByTot
       previousPoints = totalPoints;
     }
 
+    const userId = formatUserId(user);
+
     return {
       rank: denseRank,
+      rankTrend: rankTrendByUserId.get(userId) ?? null,
       totalPoints,
       name: getLeaderboardName(user),
       state: user.state || '',
-      userId: formatUserId(user),
+      userId,
       email: user.email ?? '',
     };
   });
@@ -49,8 +57,14 @@ export const getTopLeaderboard = async (req: AuthRequest, res: Response) => {
   try {
     const { limit = '30' } = req.query;
     const limitNum = parseInt(limit as string, 10);
-    const users = await listUsersByTotalPoints(limitNum);
-    res.json({ leaderboard: buildLeaderboardEntries(users), source: 'mongodb' });
+    const [users, rankTrendByUserId] = await Promise.all([
+      listUsersByTotalPoints(limitNum),
+      computeRankTrendAfterLastGame(),
+    ]);
+    res.json({
+      leaderboard: buildLeaderboardEntries(users, rankTrendByUserId),
+      source: 'mongodb',
+    });
   } catch (error) {
     const errorDetails = logger.error('getTopLeaderboard', error, { path: req.path });
     res.status(errorDetails.statusCode || 500).json({

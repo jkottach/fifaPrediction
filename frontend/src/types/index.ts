@@ -93,6 +93,7 @@ export interface Prediction {
 
 export interface LeaderboardEntry {
   rank: number;
+  rankTrend?: 'up' | 'down' | 'unchanged' | null;
   totalPoints: number;
   name: string;
   state: string;
