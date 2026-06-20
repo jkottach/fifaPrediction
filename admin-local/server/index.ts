@@ -23,6 +23,7 @@ import { registerTournamentRoutes, sumMatchPoints } from './tournament.js';
 import type { TournamentBracketPrediction } from './tournamentScoring.js';
 import { computeGroupStandings } from './groupStandings.js';
 import { resolveKnockoutTeams, type ResolvedMatchUpdate } from './knockoutResolver.js';
+import { applySnapshotsAfterMatchFinalized } from './predictionSnapshots.js';
 import {
   adminAuthMiddleware,
   loginWithPin,
@@ -45,6 +46,8 @@ interface EmbeddedPrediction {
   points: number;
   comment?: string | null;
   submittedTime: Date;
+  cumulativeTotalPoints?: number;
+  overallRank?: number | null;
 }
 
 interface UserDocument {
@@ -259,6 +262,8 @@ async function processMatchResults(
     );
     await updatePredictionPointsForMatch(db, user._id.toString(), matchId, points);
   }
+
+  await applySnapshotsAfterMatchFinalized(db, users(db), matches(db), matchId);
 }
 
 async function findMatchDocument(
