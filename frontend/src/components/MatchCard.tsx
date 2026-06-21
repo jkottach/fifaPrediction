@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Match, Prediction } from '../types';
 import { format } from 'date-fns';
 import { apiService } from '../services/apiService';
 import { getPredictionDeadlineIso, isMatchOpenForPrediction } from '../utils/matchDeadline';
 import { isMatchLive } from '../utils/matchStatus';
+import { needsPenaltyWinner } from '../utils/knockout';
+import PenaltyShootoutPicker from './PenaltyShootoutPicker';
 
 interface MatchCardProps {
   match: Match;
@@ -69,21 +71,33 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
 
   const [team1Score, setTeam1Score] = useState<number | ''>('');
   const [team2Score, setTeam2Score] = useState<number | ''>('');
+  const [penaltyWinner, setPenaltyWinner] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const countdown = useCountdown(predictionDeadlineIso ?? match.matchTime);
 
+  const showPenaltyPicker = useMemo(() => {
+    if (team1Score === '' || team2Score === '') return false;
+    return needsPenaltyWinner(match, Number(team1Score), Number(team2Score));
+  }, [match, team1Score, team2Score]);
+
   useEffect(() => {
     if (userPrediction) {
       setTeam1Score(userPrediction.team1Score);
       setTeam2Score(userPrediction.team2Score);
+      setPenaltyWinner(userPrediction.penaltyWinner ?? null);
     } else {
       setTeam1Score('');
       setTeam2Score('');
+      setPenaltyWinner(null);
     }
   }, [userPrediction]);
+
+  useEffect(() => {
+    if (!showPenaltyPicker) setPenaltyWinner(null);
+  }, [showPenaltyPicker]);
 
   const handleSubmit = async () => {
     if (!isPredictionOpen) return;
@@ -91,16 +105,21 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
       setError('Enter both scores');
       return;
     }
-    setError('');
-    setLoading(true);
     const nextTeam1Score = Number(team1Score);
     const nextTeam2Score = Number(team2Score);
+    if (needsPenaltyWinner(match, nextTeam1Score, nextTeam2Score) && !penaltyWinner) {
+      setError('Pick who wins the penalty shootout');
+      return;
+    }
+    setError('');
+    setLoading(true);
     try {
       await apiService.submitPrediction({
         matchId: match.matchId,
         team1Score: nextTeam1Score,
         team2Score: nextTeam2Score,
         comment: '',
+        ...(penaltyWinner ? { penaltyWinner } : {}),
       });
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 2500);
@@ -239,6 +258,41 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
       {error && (
         <p className="relative z-10 text-red-400 text-[11px] text-center px-4 -mt-1 mb-1 font-medium">{error}</p>
       )}
+
+      {showPenaltyPicker && isPredictionOpen && !isOngoing && !isCompleted && (
+        <div className="relative z-10 px-4 pb-3">
+          <PenaltyShootoutPicker
+            team1={{
+              teamId: match.team1,
+              teamName: t1Name,
+              countryLogo: match.team1Info?.countryLogo,
+            }}
+            team2={{
+              teamId: match.team2,
+              teamName: t2Name,
+              countryLogo: match.team2Info?.countryLogo,
+            }}
+            selectedTeamId={penaltyWinner}
+            onSelect={setPenaltyWinner}
+            disabled={loading}
+            variant="dark"
+          />
+        </div>
+      )}
+
+      {(isOngoing || isCompleted || userPrediction?.penaltyWinner) &&
+        userPrediction &&
+        userPrediction.team1Score === userPrediction.team2Score &&
+        userPrediction.penaltyWinner && (
+          <div className="relative z-10 px-4 pb-2">
+            <p className="text-center text-[10px] text-amber-300/80 font-semibold uppercase tracking-wider">
+              Penalties:{' '}
+              <span className="text-amber-200">
+                {userPrediction.penaltyWinner === match.team1 ? t1Name : t2Name} advances
+              </span>
+            </p>
+          </div>
+        )}
 
       <div className="relative z-10 mx-4 border-t border-white/[0.08]" />
 

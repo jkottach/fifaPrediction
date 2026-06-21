@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { format } from 'date-fns';
 import { apiService } from '../services/apiService';
 import {
   allTournamentTeams,
@@ -17,17 +16,6 @@ import {
 
 const EMPTY_FINALISTS: [string, string] = ['', ''];
 const EMPTY_SEMIS: [string, string, string, string] = ['', '', '', ''];
-
-function formatDateSafe(value: string | null | undefined, pattern: string): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  try {
-    return format(date, pattern);
-  } catch {
-    return null;
-  }
-}
 
 function groupChampionsFromPrediction(
   pred: TournamentPrediction | null,
@@ -79,6 +67,26 @@ function picksFromPrediction(
 
 function uniqueCount(ids: string[]): boolean {
   return new Set(ids).size === ids.length;
+}
+
+function groupPickResult(
+  group: string,
+  predicted: string,
+  officialGroupChampions: Record<string, string>
+): 'correct' | 'wrong' | null {
+  const official = officialGroupChampions[group];
+  if (!official || !predicted) return null;
+  return predicted.toUpperCase() === official.toUpperCase() ? 'correct' : 'wrong';
+}
+
+function groupPickSelectClass(result: 'correct' | 'wrong' | null): string {
+  if (result === 'correct') {
+    return '!border-2 !border-emerald-400 focus:!border-emerald-400 focus:ring-emerald-400/70 shadow-sm shadow-emerald-500/30';
+  }
+  if (result === 'wrong') {
+    return '!border-2 !border-red-400 focus:!border-red-400 focus:ring-red-400/70 shadow-sm shadow-red-500/30';
+  }
+  return '';
 }
 
 function validateGroupPicks(
@@ -192,10 +200,10 @@ const TournamentPredictions: React.FC = () => {
   const groups = HARDCODED_GROUPS;
   const [groupChampions, setGroupChampions] = useState<Record<string, string>>(emptyGroupChampions);
   const [saved, setSaved] = useState<TournamentPrediction | null>(null);
+  const [officialGroupChampions, setOfficialGroupChampions] = useState<Record<string, string>>({});
   const [champion, setChampion] = useState('');
   const [finalists, setFinalists] = useState<[string, string]>([...EMPTY_FINALISTS]);
   const [semifinalists, setSemifinalists] = useState<[string, string, string, string]>([...EMPTY_SEMIS]);
-  const [deadline, setDeadline] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(true);
   const [loadingPrediction, setLoadingPrediction] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -213,7 +221,7 @@ const TournamentPredictions: React.FC = () => {
 
         const pred: TournamentPrediction | null = predRes.data?.prediction ?? null;
         setSaved(pred);
-        setDeadline(predRes.data?.deadline ?? null);
+        setOfficialGroupChampions(predRes.data?.officialGroupChampions ?? {});
         setIsOpen(predRes.data?.isOpen !== false);
 
         const picks = picksFromPrediction(pred, groups);
@@ -287,7 +295,9 @@ const TournamentPredictions: React.FC = () => {
           group,
           ...enrichFromGroups(groupChampions[group], groupTeams),
         })),
-        submittedTime: new Date().toISOString(),
+        points: saved?.points ?? 0,
+        submittedTime: saved?.submittedTime ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2500);
@@ -337,36 +347,25 @@ const TournamentPredictions: React.FC = () => {
         <span className="text-[10px] font-semibold text-white/50 uppercase tracking-widest">
           Tournament picks
         </span>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] text-white/30 font-medium">Tournament</span>
-          {statusBadge}
-        </div>
+        {statusBadge}
       </div>
 
-      <div className="px-4 pb-2">
-        <p className="text-white/70 text-xs leading-relaxed">
-          Pick each group winner, then four semifinalists, two finalists, and your champion before
-          kickoff.
+      {loadingPrediction && (
+        <p className="px-4 pb-2 text-white/40 text-[10px] uppercase tracking-wider">
+          Loading your saved picks…
         </p>
-        {formatDateSafe(deadline, 'MMM dd, yyyy · h:mm a') && (
-          <p className="mt-1.5 text-white/40 text-[10px] uppercase tracking-widest">
-            {isOpen ? 'Closes' : 'Closed'} {formatDateSafe(deadline, 'MMM dd, yyyy · h:mm a')}
+      )}
+
+      {saved && !loadingPrediction && (
+        <div className="mx-4 mb-3 flex items-center justify-between rounded-xl border border-white/15 bg-white/5 px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">
+            Tournament total points
           </p>
-        )}
-        {loadingPrediction && (
-          <p className="mt-2 text-white/40 text-[10px] uppercase tracking-wider">
-            Loading your saved picks…
+          <p className="font-display text-3xl font-bold tabular-nums text-emerald-400">
+            {saved.points ?? 0}
           </p>
-        )}
-        {saved && !error && !loadingPrediction && (
-          <p className="mt-2 text-emerald-300/90 text-[10px] font-semibold uppercase tracking-wider">
-            Saved
-            {formatDateSafe(saved.updatedAt ?? saved.submittedTime, 'MMM dd, h:mm a')
-              ? ` · ${formatDateSafe(saved.updatedAt ?? saved.submittedTime, 'MMM dd, h:mm a')}`
-              : ''}
-          </p>
-        )}
-      </div>
+        </div>
+      )}
 
       {error && (
         <p className="relative z-10 text-red-400 text-[11px] text-center px-4 mb-2 font-medium">
@@ -380,30 +379,37 @@ const TournamentPredictions: React.FC = () => {
         <div>
             <p className={predictionCardLabel}>Group champions (winner of each group)</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {groups.map(({ group, teams: groupTeams }) => (
-                <div key={group}>
-                  <label
-                    className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1"
-                    htmlFor={`group-champion-${group}`}
-                  >
-                    Group {group}
-                  </label>
-                  <select
-                    id={`group-champion-${group}`}
-                    value={groupChampions[group] ?? ''}
-                    disabled={!isOpen || submitting}
-                    onChange={(e) => updateGroupChampion(group, e.target.value)}
-                    className={predictionCardSelect}
-                  >
-                    <option value="" className="text-slate-900" />
-                    {groupTeams.map((t) => (
-                      <option key={t.teamId} value={t.teamId} className="text-slate-900">
-                        {t.teamName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+              {groups.map(({ group, teams: groupTeams }) => {
+                const pickResult = groupPickResult(
+                  group,
+                  groupChampions[group] ?? '',
+                  officialGroupChampions
+                );
+                return (
+                  <div key={group}>
+                    <label
+                      className="block text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1"
+                      htmlFor={`group-champion-${group}`}
+                    >
+                      Group {group}
+                    </label>
+                    <select
+                      id={`group-champion-${group}`}
+                      value={groupChampions[group] ?? ''}
+                      disabled={!isOpen || submitting}
+                      onChange={(e) => updateGroupChampion(group, e.target.value)}
+                      className={`${predictionCardSelect} ${groupPickSelectClass(pickResult)}`}
+                    >
+                        <option value="" className="text-slate-900" />
+                        {groupTeams.map((t) => (
+                          <option key={t.teamId} value={t.teamId} className="text-slate-900">
+                            {t.teamName}
+                          </option>
+                        ))}
+                      </select>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

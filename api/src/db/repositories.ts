@@ -1,11 +1,13 @@
 import { ObjectId, Filter } from 'mongodb';
-import { getUsersCollection, getTeamsCollection, getMatchesCollection, toObjectId } from '../lib/mongodb';
+import { getDb, getUsersCollection, getTeamsCollection, getMatchesCollection, toObjectId } from '../lib/mongodb';
 import type {
   EmbeddedPrediction,
+  GroupChampionsPicks,
   GroupStageGroup,
   MatchDocument,
   TeamDocument,
   TournamentBracketPrediction,
+  TournamentOfficialResults,
   UserDocument,
 } from './types';
 import { HARDCODED_GROUP_STAGE } from '../constants/tournamentTeams';
@@ -101,6 +103,7 @@ export async function upsertUserPrediction(
     points: prediction.points ?? 0,
     comment: prediction.comment ?? null,
     submittedTime: prediction.submittedTime ?? new Date(),
+    penaltyWinner: prediction.penaltyWinner ?? null,
   };
 
   const idx = user.predictions.findIndex((p) => p.matchId === matchId);
@@ -153,6 +156,38 @@ export async function getEarliestMatchKickoff(): Promise<Date | null> {
     .limit(1)
     .next();
   return match?.matchTime ?? null;
+}
+
+const TOURNAMENT_RESULTS_DOC_ID = 'tournamentResults';
+
+export async function loadTournamentOfficialResults(): Promise<TournamentOfficialResults | null> {
+  const doc = await getDb().collection('settings').findOne({ _id: TOURNAMENT_RESULTS_DOC_ID });
+  if (!doc) return null;
+
+  const groupChampions: GroupChampionsPicks = {};
+  const raw = doc.groupChampions as GroupChampionsPicks | undefined;
+  if (raw && typeof raw === 'object') {
+    for (const [group, teamId] of Object.entries(raw)) {
+      const g = group.trim().toUpperCase();
+      const id = String(teamId).trim().toUpperCase();
+      if (g && id) groupChampions[g] = id;
+    }
+  }
+
+  return {
+    champion: String(doc.champion ?? '').trim().toUpperCase(),
+    finalists: [
+      String(doc.finalists?.[0] ?? '').trim().toUpperCase(),
+      String(doc.finalists?.[1] ?? '').trim().toUpperCase(),
+    ],
+    semifinalists: [
+      String(doc.semifinalists?.[0] ?? '').trim().toUpperCase(),
+      String(doc.semifinalists?.[1] ?? '').trim().toUpperCase(),
+      String(doc.semifinalists?.[2] ?? '').trim().toUpperCase(),
+      String(doc.semifinalists?.[3] ?? '').trim().toUpperCase(),
+    ],
+    groupChampions,
+  };
 }
 
 export async function upsertTournamentPrediction(

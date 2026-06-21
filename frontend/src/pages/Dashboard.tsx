@@ -6,7 +6,6 @@ import { apiService } from '../services/apiService';
 import { Match, Prediction, LiveMatchPredictionEntry } from '../types';
 import MatchCard from '../components/MatchCard';
 import LiveMatchPredictionsList from '../components/LiveMatchPredictionsList';
-import TournamentPredictions from '../components/TournamentPredictions';
 import PageHero from '../components/PageHero';
 import {
   isLockedAwaitingKickoff,
@@ -52,7 +51,6 @@ const Dashboard: React.FC = () => {
   const [myRank, setMyRank] = useState<UserRankInfo>(defaultRankInfo);
   const [loadError, setLoadError] = useState('');
   const [now, setNow] = useState(() => Date.now());
-  const [showTournamentPredictions, setShowTournamentPredictions] = useState(false);
   const [livePredictionsByMatchId, setLivePredictionsByMatchId] = useState<
     Record<string, LiveMatchPredictionEntry[]>
   >({});
@@ -291,23 +289,6 @@ const Dashboard: React.FC = () => {
           <span className="font-display font-bold text-slate-900">View previous predictions</span>
           <span className={linkAccent}>→</span>
         </Link>
-
-        {isLoggedIn && (
-          <div>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="font-display text-lg font-bold text-slate-900">Tournament predictions</h2>
-              <button
-                type="button"
-                onClick={() => setShowTournamentPredictions((open) => !open)}
-                className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition"
-                aria-expanded={showTournamentPredictions}
-              >
-                {showTournamentPredictions ? 'Hide' : 'Show'}
-              </button>
-            </div>
-            {showTournamentPredictions && <TournamentPredictions />}
-          </div>
-        )}
 
         {liveMatches.length > 0 && (
           <div>

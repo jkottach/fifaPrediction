@@ -4,8 +4,10 @@ import { apiService } from '../services/apiService';
 import { Match, MatchEarnerEntry, Prediction } from '../types';
 import PredictionForm from '../components/PredictionForm';
 import PageHero from '../components/PageHero';
+import TournamentPredictionHistoryCard from '../components/TournamentPredictionHistoryCard';
 import { btnPrimary, cardPad, spinner } from '../theme';
 import { format } from 'date-fns';
+import { TournamentPrediction } from '../types';
 
 type ViewMode = 'mine' | 'latest-top';
 
@@ -25,12 +27,32 @@ const MyPredictions: React.FC = () => {
   const [latestMatch, setLatestMatch] = useState<Match | null>(null);
   const [topEarners, setTopEarners] = useState<MatchEarnerEntry[]>([]);
   const [topEarnersLoading, setTopEarnersLoading] = useState(false);
+  const [tournamentPrediction, setTournamentPrediction] = useState<TournamentPrediction | null>(null);
+  const [officialGroupChampions, setOfficialGroupChampions] = useState<Record<string, string>>({});
+  const [tournamentLoading, setTournamentLoading] = useState(false);
+  const [showTournamentCard, setShowTournamentCard] = useState(false);
 
   useEffect(() => {
     if (view === 'mine') {
       fetchPredictions(1);
+      void fetchTournamentPrediction();
     }
   }, [view]);
+
+  const fetchTournamentPrediction = async () => {
+    try {
+      setTournamentLoading(true);
+      const response = await apiService.getTournamentPrediction();
+      setTournamentPrediction(response.data?.prediction ?? null);
+      setOfficialGroupChampions(response.data?.officialGroupChampions ?? {});
+    } catch (error) {
+      console.error('Failed to fetch tournament prediction:', error);
+      setTournamentPrediction(null);
+      setOfficialGroupChampions({});
+    } finally {
+      setTournamentLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (view === 'latest-top') {
@@ -196,13 +218,43 @@ const MyPredictions: React.FC = () => {
               )}
             </>
           )
-        ) : loading ? (
+        ) : loading && !tournamentPrediction ? (
           <div className="flex flex-col items-center py-16">
             <div className={spinner} />
             <p className="mt-4 text-sm font-medium text-slate-600">Loading predictions...</p>
           </div>
-        ) : predictions.length > 0 ? (
+        ) : predictions.length > 0 || tournamentPrediction ? (
           <>
+            {tournamentPrediction && (
+              <div className="mb-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="font-display text-base font-bold text-slate-900">
+                    Tournament Picks
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowTournamentCard((open) => !open)}
+                    className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition"
+                    aria-expanded={showTournamentCard}
+                  >
+                    {showTournamentCard ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                {showTournamentCard && (
+                  <TournamentPredictionHistoryCard
+                    prediction={tournamentPrediction}
+                    officialGroupChampions={officialGroupChampions}
+                  />
+                )}
+              </div>
+            )}
+
+            {loading && predictions.length === 0 && !tournamentLoading ? (
+              <div className="flex flex-col items-center py-8">
+                <div className={spinner} />
+              </div>
+            ) : predictions.length > 0 ? (
+            <>
             <div className="space-y-3">
               {predictions.map((prediction: Prediction & {
                 id?: string;
@@ -316,6 +368,14 @@ const MyPredictions: React.FC = () => {
                 </button>
               </div>
             )}
+            </>
+            ) : (
+              <div className={`${cardPad} py-8 text-center`}>
+                <p className="text-sm font-medium text-slate-600">
+                  No completed match predictions yet. Finished matches will appear here once results are in.
+                </p>
+              </div>
+            )}
           </>
         ) : (
           <div className={`${cardPad} py-12 text-center`}>
@@ -337,6 +397,7 @@ const MyPredictions: React.FC = () => {
               team1Score: editingPrediction.team1Score,
               team2Score: editingPrediction.team2Score,
               comment: editingPrediction.comment,
+              penaltyWinner: editingPrediction.penaltyWinner,
             }}
             onSuccess={handleEditSuccess}
             onClose={() => setEditingPrediction(null)}

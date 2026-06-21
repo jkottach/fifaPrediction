@@ -7,6 +7,7 @@ import {
   findTeamsByIds,
   findUserById,
   listGroupStageGroups,
+  loadTournamentOfficialResults,
   upsertTournamentPrediction,
 } from '../db/repositories';
 
@@ -123,13 +124,18 @@ export const getTournamentPrediction = async (req: AuthRequest, res: Response) =
 
     const deadline = resolvePredictionDeadline();
     const stored = user.tournamentPrediction;
-    const stageGroups = await listGroupStageGroups();
+    const [stageGroups, officialResults] = await Promise.all([
+      listGroupStageGroups(),
+      loadTournamentOfficialResults(),
+    ]);
     const groups = await enrichGroupStageForApi(stageGroups);
+    const officialGroupChampions = officialResults?.groupChampions ?? {};
 
     if (!stored) {
       return res.json({
         prediction: null,
         groups,
+        officialGroupChampions,
         deadline: deadline?.toISOString() ?? null,
         isOpen: deadline ? new Date() < deadline : true,
       });
@@ -165,6 +171,7 @@ export const getTournamentPrediction = async (req: AuthRequest, res: Response) =
         updatedAt: stored.updatedAt,
       },
       groups,
+      officialGroupChampions,
       deadline: deadline?.toISOString() ?? null,
       isOpen: deadline ? new Date() < deadline : true,
     });
