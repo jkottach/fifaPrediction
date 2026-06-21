@@ -48,17 +48,19 @@ ADMIN_PORT=5002
 ADMIN_PIN=12189
 ```
 
-**`tenants.config.json`** — copy from example and set each app’s database:
+**`tenants.config.json`** — not in git (like `.env`). Copy once from the example:
 
 ```bash
 cp tenants.config.example.json tenants.config.json
-nano tenants.config.json
+nano tenants.config.json   # adjust dbName / url per app if needed
 ```
 
 | File | Purpose |
 |------|---------|
 | `.env` | MongoDB connection string + PIN |
-| `tenants.config.json` | List of apps + `dbName` per app |
+| `tenants.config.json` | List of apps + `dbName` per app (local file, gitignored) |
+| `tenants.config.example.json` | Production template (tracked) |
+| `tenants.config.dev.json` | Local dev template (tracked) |
 
 ---
 
@@ -102,6 +104,7 @@ Open **https://admin.kanhans.com** → enter PIN.
 cd /home/ec2-user/fifaPrediction-admin
 git pull origin admin-local
 cd admin-local
+test -f tenants.config.json || cp tenants.config.example.json tenants.config.json
 npm install
 npm run build
 pm2 restart wc26-admin
@@ -115,7 +118,8 @@ pm2 restart wc26-admin
 |-------|-----|
 | 502 Bad Gateway | `pm2 logs wc26-admin` — is port 5002 up? |
 | Invalid PIN | Check `ADMIN_PIN` in `.env`, `pm2 restart wc26-admin` |
-| No tenants in UI | Check `tenants.config.json` |
+| Only one app / “local” DB in UI | `tenants.config.json` still has dev config — run `cp tenants.config.example.json tenants.config.json` then `pm2 restart wc26-admin` |
+| No tenants in UI | Check `tenants.config.json` exists and has a non-empty `tenants` array |
 | DB errors | Same `MONGODB_URI` as main API; Atlas IP allowlist includes EC2 |
 
 ---

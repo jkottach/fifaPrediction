@@ -19,6 +19,9 @@ build/
 !**/.env.example
 !frontend/.env.production
 
+# Admin tenant list (per machine; templates tracked)
+admin-local/tenants.config.json
+
 # Azurite (local Azure Storage emulator)
 __azurite_db_*
 __blobstorage__/

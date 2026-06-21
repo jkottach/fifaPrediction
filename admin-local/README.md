@@ -12,11 +12,11 @@ cp .env.example .env
 # Edit .env — set MONGODB_URI (usually one cluster for all apps)
 ```
 
-2. Configure prediction apps (databases):
+2. Configure prediction apps (databases). `tenants.config.json` is **gitignored** (like `.env`):
 
 ```bash
-cp tenants.config.example.json tenants.config.json
-# Edit dbName for Kanhans, FCC, Mandrake, DIWA, etc. if needed
+cp tenants.config.dev.json tenants.config.json      # local dev
+# cp tenants.config.example.json tenants.config.json  # production (EC2)
 ```
 
 Each tenant uses the same `MONGODB_URI` and a different `dbName` (same collections in each DB).
