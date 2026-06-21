@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import TeamSelect from '../components/TeamSelect';
-import { applyTournamentResults, getTournamentSetup } from '../api';
+import { applyGroupChampion, applyTournamentResults, getTournamentSetup } from '../api';
 import { TOURNAMENT_POINTS } from '../constants/tournamentPoints';
 import type { GroupStageGroupInfo, TournamentOfficialResults, TournamentTeamOption } from '../types';
 
@@ -33,8 +33,10 @@ const Tournament: React.FC<TournamentProps> = ({
   const [predictionsCount, setPredictionsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [savingGroup, setSavingGroup] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [savedGroupChampions, setSavedGroupChampions] = useState<Record<string, string>>({});
 
   const [champion, setChampion] = useState('');
   const [finalists, setFinalists] = useState<[string, string]>([...EMPTY_FINALISTS]);
@@ -53,6 +55,7 @@ const Tournament: React.FC<TournamentProps> = ({
         setFinalists([...EMPTY_FINALISTS]);
         setSemifinalists([...EMPTY_SEMIS]);
         setGroupChampions(emptyGroups);
+        setSavedGroupChampions({});
         return;
       }
 
@@ -67,7 +70,9 @@ const Tournament: React.FC<TournamentProps> = ({
         results.semifinalists[2] ?? '',
         results.semifinalists[3] ?? '',
       ]);
-      setGroupChampions({ ...emptyGroups, ...results.groupChampions });
+      const mergedGroups = { ...emptyGroups, ...results.groupChampions };
+      setGroupChampions(mergedGroups);
+      setSavedGroupChampions({ ...results.groupChampions });
     },
     []
   );
@@ -96,6 +101,40 @@ const Tournament: React.FC<TournamentProps> = ({
   useEffect(() => {
     void loadSetup();
   }, [loadSetup]);
+
+  const handleSaveGroup = async (group: string) => {
+    const teamId = groupChampions[group]?.trim();
+    if (!teamId) {
+      setError(`Pick a winner for Group ${group} first`);
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+    setSavingGroup(group);
+    try {
+      const { message, outcomes } = await applyGroupChampion(group, teamId);
+      const failed = outcomes?.filter((o) => !o.ok) ?? [];
+      if (failed.length > 0) {
+        setSuccess(
+          `${message}. Failed: ${failed.map((f) => f.tenant.label).join(', ')}`
+        );
+      } else {
+        setSuccess(message);
+      }
+      setSavedGroupChampions((prev) => ({ ...prev, [group]: teamId }));
+      void loadSetup();
+      setTimeout(() => setSuccess(''), 6000);
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
+          : undefined;
+      setError(message || `Failed to save Group ${group} winner`);
+    } finally {
+      setSavingGroup(null);
+    }
+  };
 
   const handleSubmit = async () => {
     setError('');
@@ -183,34 +222,65 @@ const Tournament: React.FC<TournamentProps> = ({
       ) : (
         <div className="space-y-4">
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-            <h2 className="font-display text-sm font-bold text-slate-900">Group stage winners</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {groups.map((g) => (
-                <div key={g.group}>
-                  <label
-                    className="text-[10px] font-bold uppercase tracking-wider text-slate-400"
-                    htmlFor={`group-${g.group}`}
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-sm font-bold text-slate-900">Group stage winners</h2>
+              <p className="text-[10px] text-slate-500">Save one group at a time</p>
+            </div>
+            <div className="space-y-3">
+              {groups.map((g) => {
+                const pick = groupChampions[g.group] ?? '';
+                const isSaved = Boolean(pick) && savedGroupChampions[g.group] === pick;
+                const isSaving = savingGroup === g.group;
+
+                return (
+                  <div
+                    key={g.group}
+                    className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2"
                   >
-                    Group {g.group}
-                  </label>
-                  <TeamSelect
-                    id={`group-${g.group}`}
-                    value={groupChampions[g.group] ?? ''}
-                    onChange={(id) =>
-                      setGroupChampions((prev) => ({ ...prev, [g.group]: id }))
-                    }
-                    teams={g.teams}
-                    placeholder={`Group ${g.group} winner`}
-                    disabled={submitting}
-                  />
-                </div>
-              ))}
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        className="text-[10px] font-bold uppercase tracking-wider text-slate-500"
+                        htmlFor={`group-${g.group}`}
+                      >
+                        Group {g.group}
+                      </label>
+                      {isSaved && (
+                        <span className="text-[10px] font-semibold text-emerald-600">Saved</span>
+                      )}
+                    </div>
+                    <TeamSelect
+                      id={`group-${g.group}`}
+                      value={pick}
+                      onChange={(id) =>
+                        setGroupChampions((prev) => ({ ...prev, [g.group]: id }))
+                      }
+                      teams={g.teams}
+                      placeholder={`Group ${g.group} winner`}
+                      disabled={Boolean(savingGroup) || submitting}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveGroup(g.group)}
+                      disabled={!pick || Boolean(savingGroup) || submitting}
+                      className="w-full min-h-[40px] rounded-lg bg-slate-900 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition"
+                    >
+                      {isSaving
+                        ? 'Saving…'
+                        : isSaved
+                          ? `Update Group ${g.group}`
+                          : `Save Group ${g.group}`}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
             <h2 className="font-display text-sm font-bold text-slate-900">Knockout bracket</h2>
-            <p className="text-xs text-slate-500">4 semifinalists → 2 finalists → champion</p>
+            <p className="text-xs text-slate-500">
+              4 semifinalists → 2 finalists → champion. Apply when the bracket is complete.
+            </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {([0, 1, 2, 3] as const).map((i) => (
@@ -275,8 +345,8 @@ const Tournament: React.FC<TournamentProps> = ({
             {submitting
               ? 'Calculating points…'
               : isAllTenants
-                ? 'Apply scoring to all databases'
-                : 'Apply tournament scoring'}
+                ? 'Apply knockout scoring to all databases'
+                : 'Apply knockout scoring'}
           </button>
         </div>
       )}

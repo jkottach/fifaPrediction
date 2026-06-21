@@ -187,6 +187,23 @@ export async function applyTournamentResults(body: TournamentOfficialResults) {
   };
 }
 
+export async function applyGroupChampion(group: string, teamId: string) {
+  const res = await client.post('/local-admin/tournament-results/group', { group, teamId });
+  return res.data as {
+    message: string;
+    group: string;
+    teamId: string;
+    usersUpdated?: number;
+    tenant?: Tenant;
+    outcomes?: Array<{
+      tenant: Tenant;
+      ok: boolean;
+      usersUpdated?: number;
+      error?: string;
+    }>;
+  };
+}
+
 export async function getTopLeaderboard(limit = 10) {
   const res = await client.get('/leaderboard/top', { params: { limit } });
   return res.data as {

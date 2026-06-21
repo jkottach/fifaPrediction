@@ -152,14 +152,28 @@ async function saveOfficialResults(db: Db, results: TournamentOfficialResults): 
   );
 }
 
-function validateGroupChampions(
-  groupChampions: GroupChampionsPicks,
+function emptyOfficialResults(): TournamentOfficialResults {
+  return {
+    champion: '',
+    finalists: ['', ''],
+    semifinalists: ['', '', '', ''],
+    groupChampions: {},
+  };
+}
+
+function validateSingleGroupChampion(
+  group: string,
+  teamId: string,
   stageGroups: GroupStageGroup[]
 ): string | null {
-  for (const { group, teamIds } of stageGroups) {
-    const pick = groupChampions[group];
-    if (!pick) return `Pick a winner for Group ${group}`;
-    if (!teamIds.includes(pick)) return `${pick} is not valid in Group ${group}`;
+  const normalizedGroup = group.trim().toUpperCase();
+  const pick = teamId.trim().toUpperCase();
+  if (!normalizedGroup || !pick) return 'Group and team are required';
+
+  const stageGroup = stageGroups.find((g) => g.group === normalizedGroup);
+  if (!stageGroup) return `Group ${normalizedGroup} was not found`;
+  if (!stageGroup.teamIds.includes(pick)) {
+    return `${pick} is not valid in Group ${normalizedGroup}`;
   }
   return null;
 }
@@ -200,7 +214,10 @@ export async function applyTournamentScoring(db: Db, results: TournamentOfficial
   return { usersUpdated };
 }
 
-function parseResultsBody(body: Record<string, unknown>, stageGroups: GroupStageGroup[]) {
+function parseBracketResultsBody(
+  body: Record<string, unknown>,
+  existing: TournamentOfficialResults | null
+): TournamentOfficialResults {
   const champion = String(body.champion ?? '').trim().toUpperCase();
   const finalists = (Array.isArray(body.finalists) ? body.finalists : []).map((id) =>
     String(id).trim().toUpperCase()
@@ -208,9 +225,10 @@ function parseResultsBody(body: Record<string, unknown>, stageGroups: GroupStage
   const semifinalists = (Array.isArray(body.semifinalists) ? body.semifinalists : []).map(
     (id) => String(id).trim().toUpperCase()
   ) as [string, string, string, string];
-  const groupChampions = normalizeGroupChampions(
-    (body.groupChampions as GroupChampionsPicks) ?? {}
-  );
+  const groupChampions = {
+    ...(existing?.groupChampions ?? {}),
+    ...normalizeGroupChampions((body.groupChampions as GroupChampionsPicks) ?? {}),
+  };
 
   if (finalists.length !== 2 || semifinalists.length !== 4) {
     throw new Error('finalists (2) and semifinalists (4) are required');
@@ -220,12 +238,31 @@ function parseResultsBody(body: Record<string, unknown>, stageGroups: GroupStage
   const logicError = validateBracketLogic(champion, finalists, semifinalists);
   if (logicError) throw new Error(logicError);
 
-  if (stageGroups.length > 0) {
-    const groupError = validateGroupChampions(groupChampions, stageGroups);
-    if (groupError) throw new Error(groupError);
-  }
-
   return { champion, finalists, semifinalists, groupChampions };
+}
+
+async function applyGroupChampion(
+  db: Db,
+  group: string,
+  teamId: string
+): Promise<{ usersUpdated: number; group: string; teamId: string }> {
+  const stageGroups = await listGroupStageGroups(db);
+  const groupError = validateSingleGroupChampion(group, teamId, stageGroups);
+  if (groupError) throw new Error(groupError);
+
+  const normalizedGroup = group.trim().toUpperCase();
+  const pick = teamId.trim().toUpperCase();
+  const existing = (await loadOfficialResults(db)) ?? emptyOfficialResults();
+  const results: TournamentOfficialResults = {
+    ...existing,
+    groupChampions: {
+      ...existing.groupChampions,
+      [normalizedGroup]: pick,
+    },
+  };
+
+  const { usersUpdated } = await applyTournamentScoring(db, results);
+  return { usersUpdated, group: normalizedGroup, teamId: pick };
 }
 
 export function registerTournamentRoutes(app: Express) {
@@ -257,12 +294,83 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.post('/api/local-admin/tournament-results/group', async (req, res) => {
+    const { tenantId } = req as TenantRequest;
+    const group = String(req.body?.group ?? '').trim();
+    const teamId = String(req.body?.teamId ?? '').trim();
+
+    try {
+      const runForDb = async (tdb: Db) => applyGroupChampion(tdb, group, teamId);
+
+      if (isAllTenantsMode(tenantId)) {
+        const outcomes: Array<{
+          tenant: { id: string; label: string; dbName: string };
+          ok: boolean;
+          usersUpdated?: number;
+          error?: string;
+        }> = [];
+
+        for (const t of listConfiguredTenants()) {
+          const tdb = await getDbForTenant(t.id);
+          try {
+            const { usersUpdated } = await runForDb(tdb);
+            outcomes.push({
+              tenant: { id: t.id, label: t.label, dbName: t.dbName },
+              ok: true,
+              usersUpdated,
+            });
+          } catch (err) {
+            outcomes.push({
+              tenant: { id: t.id, label: t.label, dbName: t.dbName },
+              ok: false,
+              error: err instanceof Error ? err.message : 'Failed',
+            });
+          }
+        }
+
+        const succeeded = outcomes.filter((o) => o.ok);
+        if (succeeded.length === 0) {
+          return res.status(500).json({ error: 'Failed on all databases', outcomes });
+        }
+
+        const failed = outcomes.filter((o) => !o.ok);
+        return res.json({
+          message:
+            failed.length === 0
+              ? `Group ${group} winner saved on all ${succeeded.length} databases`
+              : `Group ${group} winner saved on ${succeeded.length} of ${outcomes.length} databases`,
+          group,
+          teamId,
+          tenant: { id: ALL_TENANT_ID, label: 'All', dbName: 'all databases' },
+          outcomes,
+          usersUpdated: succeeded.reduce((n, o) => n + (o.usersUpdated ?? 0), 0),
+        });
+      }
+
+      const { db } = req as TenantRequest;
+      const { usersUpdated } = await runForDb(db);
+      const tenant = getTenantDefinition(tenantId);
+
+      res.json({
+        message: `Group ${group} winner saved — ${usersUpdated} user(s) updated`,
+        group,
+        teamId,
+        usersUpdated,
+        tenant: { id: tenant.id, label: tenant.label, dbName: tenant.dbName },
+      });
+    } catch (err) {
+      console.error('POST /api/local-admin/tournament-results/group', err);
+      const message = err instanceof Error ? err.message : 'Failed to save group winner';
+      res.status(400).json({ error: message });
+    }
+  });
+
   app.post('/api/local-admin/tournament-results', async (req, res) => {
     const { tenantId } = req as TenantRequest;
     try {
       const runForDb = async (tdb: Db) => {
-        const stageGroups = await listGroupStageGroups(tdb);
-        const results = parseResultsBody(req.body ?? {}, stageGroups);
+        const existing = await loadOfficialResults(tdb);
+        const results = parseBracketResultsBody(req.body ?? {}, existing);
         return applyTournamentScoring(tdb, results);
       };
 
