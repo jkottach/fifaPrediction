@@ -8,6 +8,7 @@ import type {
   TeamDocument,
   TournamentBracketPrediction,
   TournamentOfficialResults,
+  TournamentResultsSettingsDocument,
   UserDocument,
 } from './types';
 import { HARDCODED_GROUP_STAGE } from '../constants/tournamentTeams';
@@ -161,7 +162,9 @@ export async function getEarliestMatchKickoff(): Promise<Date | null> {
 const TOURNAMENT_RESULTS_DOC_ID = 'tournamentResults';
 
 export async function loadTournamentOfficialResults(): Promise<TournamentOfficialResults | null> {
-  const doc = await getDb().collection('settings').findOne({ _id: TOURNAMENT_RESULTS_DOC_ID });
+  const doc = await getDb()
+    .collection<TournamentResultsSettingsDocument>('settings')
+    .findOne({ _id: TOURNAMENT_RESULTS_DOC_ID });
   if (!doc) return null;
 
   const groupChampions: GroupChampionsPicks = {};

@@ -27,6 +27,12 @@ export interface TournamentOfficialResults {
   groupChampions: GroupChampionsPicks;
 }
 
+/** `settings` collection document for official tournament results. */
+export interface TournamentResultsSettingsDocument extends Partial<TournamentOfficialResults> {
+  _id: string;
+  updatedAt?: Date;
+}
+
 /** Group stage teams derived from match fixtures. */
 export interface GroupStageGroup {
   group: string;
