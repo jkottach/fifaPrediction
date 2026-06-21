@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Match, Prediction } from '../types';
 import { apiService } from '../services/apiService';
+import { needsPenaltyWinner } from '../utils/knockout';
+import PenaltyShootoutPicker from './PenaltyShootoutPicker';
 import { alertError, btnOutline, btnPrimary, cardPad, input, label } from '../theme';
 
 interface PredictionFormProps {
@@ -9,6 +11,7 @@ interface PredictionFormProps {
     team1Score: number;
     team2Score: number;
     comment?: string;
+    penaltyWinner?: string | null;
   };
   onSuccess?: (prediction: Prediction) => void;
   onClose?: () => void;
@@ -22,12 +25,28 @@ const PredictionForm: React.FC<PredictionFormProps> = ({
 }) => {
   const [team1Score, setTeam1Score] = useState(initialPrediction?.team1Score ?? 0);
   const [team2Score, setTeam2Score] = useState(initialPrediction?.team2Score ?? 0);
+  const [penaltyWinner, setPenaltyWinner] = useState<string | null>(
+    initialPrediction?.penaltyWinner ?? null
+  );
   const [comment, setComment] = useState(initialPrediction?.comment ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const showPenaltyPicker = useMemo(
+    () => needsPenaltyWinner(match, team1Score, team2Score),
+    [match, team1Score, team2Score]
+  );
+
+  useEffect(() => {
+    if (!showPenaltyPicker) setPenaltyWinner(null);
+  }, [showPenaltyPicker]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (showPenaltyPicker && !penaltyWinner) {
+      setError('Pick who wins the penalty shootout');
+      return;
+    }
     setError('');
     setLoading(true);
 
@@ -37,6 +56,7 @@ const PredictionForm: React.FC<PredictionFormProps> = ({
         team1Score,
         team2Score,
         comment,
+        ...(penaltyWinner ? { penaltyWinner } : {}),
       });
 
       if (onSuccess) {
@@ -91,6 +111,25 @@ const PredictionForm: React.FC<PredictionFormProps> = ({
             required
           />
         </div>
+
+        {showPenaltyPicker && (
+          <PenaltyShootoutPicker
+            team1={{
+              teamId: match.team1,
+              teamName: match.team1Info?.teamName ?? match.team1,
+              countryLogo: match.team1Info?.countryLogo,
+            }}
+            team2={{
+              teamId: match.team2,
+              teamName: match.team2Info?.teamName ?? match.team2,
+              countryLogo: match.team2Info?.countryLogo,
+            }}
+            selectedTeamId={penaltyWinner}
+            onSelect={setPenaltyWinner}
+            disabled={loading}
+            variant="light"
+          />
+        )}
 
         <div>
           <label className={label}>Comment (optional)</label>

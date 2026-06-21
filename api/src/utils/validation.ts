@@ -40,6 +40,7 @@ export const schemas = {
     team1Score: Joi.number().min(0).required(),
     team2Score: Joi.number().min(0).required(),
     comment: Joi.string().allow('', null).optional(),
+    penaltyWinner: Joi.string().trim().allow('', null).optional(),
   }),
 
   tournamentPrediction: Joi.object({

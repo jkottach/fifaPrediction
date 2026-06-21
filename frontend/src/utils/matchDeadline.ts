@@ -28,3 +28,13 @@ export function isMatchOpenForPrediction(match: MatchTimes, now = Date.now()): b
   if (deadline === null) return true;
   return deadline > now;
 }
+
+export function isBeforeKickoff(match: MatchTimes, now = Date.now()): boolean {
+  const kickoff = Date.parse(match.matchTime ?? '');
+  return !Number.isNaN(kickoff) && kickoff > now;
+}
+
+/** Predictions closed but kickoff has not started — show locked pick on dashboard. */
+export function isLockedAwaitingKickoff(match: MatchTimes, now = Date.now()): boolean {
+  return isBeforeKickoff(match, now) && !isMatchOpenForPrediction(match, now);
+}

@@ -1,13 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { loginWithGoogle, useAzureAuth } from '../services/swaAuth';
+import { useAzureAuth } from '../services/swaAuth';
 import { apiService } from '../services/apiService';
-import { Match, Prediction } from '../types';
+import { Match, Prediction, LiveMatchPredictionEntry } from '../types';
 import MatchCard from '../components/MatchCard';
-import TournamentPredictions from '../components/TournamentPredictions';
+import LiveMatchPredictionsList from '../components/LiveMatchPredictionsList';
 import PageHero from '../components/PageHero';
-import { isMatchLive, isMatchUpcoming, normalizeMatchStatus } from '../utils/matchStatus';
+import {
+  isLockedAwaitingKickoff,
+  isMatchOpenForPrediction,
+} from '../utils/matchDeadline';
+import { isMatchLive, normalizeMatchStatus } from '../utils/matchStatus';
 import { alertError, cardPad, linkAccent, spinner } from '../theme';
 
 interface UserRankInfo {
@@ -20,6 +24,24 @@ const defaultRankInfo: UserRankInfo = { rank: '-', totalPoints: 0 };
 const pickRank = (data: { final?: UserRankInfo; overall?: UserRankInfo } | undefined): UserRankInfo =>
   data?.final ?? data?.overall ?? defaultRankInfo;
 
+const sortByKickoff = (a: Match, b: Match) => {
+  const ta = Date.parse(a.matchTime ?? '');
+  const tb = Date.parse(b.matchTime ?? '');
+  if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+  return (a.sequence ?? 0) - (b.sequence ?? 0);
+};
+
+/** Merge match lists; later sources win so ongoing/open-for-prediction data overrides stale scheduled copies. */
+const mergeMatches = (...groups: Match[][]): Match[] => {
+  const byId = new Map<string, Match>();
+  for (const group of groups) {
+    for (const m of group) {
+      byId.set(m.matchId, m);
+    }
+  }
+  return [...byId.values()];
+};
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { isLoggedIn, user, authReady } = useAuth();
@@ -29,7 +51,21 @@ const Dashboard: React.FC = () => {
   const [myRank, setMyRank] = useState<UserRankInfo>(defaultRankInfo);
   const [loadError, setLoadError] = useState('');
   const [now, setNow] = useState(() => Date.now());
-  const [showTournamentPredictions, setShowTournamentPredictions] = useState(false);
+  const [livePredictionsByMatchId, setLivePredictionsByMatchId] = useState<
+    Record<string, LiveMatchPredictionEntry[]>
+  >({});
+
+  const applyLivePredictionsResponse = (data: {
+    matches?: Array<{ match: Match; predictions: LiveMatchPredictionEntry[] }>;
+  }) => {
+    const byId: Record<string, LiveMatchPredictionEntry[]> = {};
+    for (const group of data.matches ?? []) {
+      if (group.match?.matchId) {
+        byId[group.match.matchId] = group.predictions ?? [];
+      }
+    }
+    setLivePredictionsByMatchId(byId);
+  };
 
   const getPredictionMatchId = (prediction: Prediction): string =>
     typeof prediction.matchId === 'string' ? prediction.matchId : prediction.matchId.matchId;
@@ -37,15 +73,47 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (!authReady) return;
     if (!isLoggedIn) {
-      if (useAzureAuth) {
-        loginWithGoogle('/dashboard');
-      } else {
-        navigate('/login?signed_out=1', { replace: true });
-      }
+      navigate(useAzureAuth ? '/login' : '/login?signed_out=1', { replace: true });
       return;
     }
     loadDashboardData();
   }, [authReady, isLoggedIn, navigate]);
+
+  const refreshLiveMatches = useCallback(async () => {
+    try {
+      const [openResult, scheduledResult, ongoingResult, livePredictionsResult] =
+        await Promise.allSettled([
+          apiService.getOpenMatches(1, 50),
+          apiService.getAllMatches('scheduled', 1, 100),
+          apiService.getAllMatches('ongoing', 1, 20),
+          apiService.getLiveMatchPredictions(),
+        ]);
+
+      const scheduled =
+        scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
+      const ongoing = ongoingResult.status === 'fulfilled' ? ongoingResult.value.data?.matches ?? [] : [];
+      const open = openResult.status === 'fulfilled' ? openResult.value.data?.matches ?? [] : [];
+
+      if (livePredictionsResult.status === 'fulfilled') {
+        applyLivePredictionsResponse(livePredictionsResult.value.data);
+      }
+
+      if (
+        openResult.status !== 'fulfilled' &&
+        scheduledResult.status !== 'fulfilled' &&
+        ongoingResult.status !== 'fulfilled'
+      ) {
+        return;
+      }
+
+      setMatches((prev) => {
+        const completed = prev.filter((m) => normalizeMatchStatus(m.status) === 'completed');
+        return mergeMatches(scheduled, open, ongoing, completed);
+      });
+    } catch (error) {
+      console.error('Failed to refresh live matches:', error);
+    }
+  }, []);
 
   useEffect(() => {
     if (!authReady || !isLoggedIn) return;
@@ -54,32 +122,41 @@ const Dashboard: React.FC = () => {
       void refreshLiveMatches();
     }, 30_000);
     return () => window.clearInterval(id);
-  }, [authReady, isLoggedIn]);
+  }, [authReady, isLoggedIn, refreshLiveMatches]);
 
   const loadDashboardData = async () => {
     setLoading(true);
     setLoadError('');
 
-    const [scheduledResult, ongoingResult, predictionsResult, statsResult] = await Promise.allSettled([
-      apiService.getAllMatches('scheduled', 1, 104),
-      apiService.getAllMatches('ongoing', 1, 20),
-      apiService.getUserPredictions(1, 100),
-      apiService.getUserStats(),
-    ]);
-
     const errors: string[] = [];
 
-    const scheduled = scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
-    const ongoing = ongoingResult.status === 'fulfilled' ? ongoingResult.value.data?.matches ?? [] : [];
+    const [openResult, scheduledResult, ongoingResult, predictionsResult, statsResult, livePredictionsResult] =
+      await Promise.allSettled([
+        apiService.getOpenMatches(1, 50),
+        apiService.getAllMatches('scheduled', 1, 100),
+        apiService.getAllMatches('ongoing', 1, 20),
+        apiService.getUserPredictions(1, 100),
+        apiService.getUserStats(),
+        apiService.getLiveMatchPredictions(),
+      ]);
 
-    if (scheduledResult.status === 'fulfilled' || ongoingResult.status === 'fulfilled') {
-      const byId = new Map<string, Match>();
-      for (const m of [...ongoing, ...scheduled]) {
-        byId.set(m.matchId, m);
-      }
-      setMatches([...byId.values()]);
+    const scheduled =
+      scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
+    const ongoing = ongoingResult.status === 'fulfilled' ? ongoingResult.value.data?.matches ?? [] : [];
+    const open = openResult.status === 'fulfilled' ? openResult.value.data?.matches ?? [] : [];
+
+    if (
+      openResult.status === 'fulfilled' ||
+      scheduledResult.status === 'fulfilled' ||
+      ongoingResult.status === 'fulfilled'
+    ) {
+      setMatches(mergeMatches(scheduled, open, ongoing));
     } else {
-      console.error('Failed to load matches:', scheduledResult.reason ?? ongoingResult.reason);
+      console.error(
+        'Failed to load matches:',
+        openResult.reason ?? scheduledResult.reason ?? ongoingResult.reason
+      );
+      setMatches([]);
       errors.push('matches');
     }
 
@@ -97,6 +174,12 @@ const Dashboard: React.FC = () => {
       errors.push('rank');
     }
 
+    if (livePredictionsResult.status === 'fulfilled') {
+      applyLivePredictionsResponse(livePredictionsResult.value.data);
+    } else {
+      console.error('Failed to load live predictions:', livePredictionsResult.reason);
+    }
+
     if (errors.length > 0) {
       setLoadError(
         errors.includes('matches')
@@ -106,27 +189,6 @@ const Dashboard: React.FC = () => {
     }
 
     setLoading(false);
-  };
-
-  const refreshLiveMatches = async () => {
-    try {
-      const [scheduledRes, ongoingRes] = await Promise.all([
-        apiService.getAllMatches('scheduled', 1, 104),
-        apiService.getAllMatches('ongoing', 1, 20),
-      ]);
-      const scheduled = scheduledRes.data?.matches ?? [];
-      const ongoing = ongoingRes.data?.matches ?? [];
-      setMatches((prev) => {
-        const completed = prev.filter((m) => normalizeMatchStatus(m.status) === 'completed');
-        const byId = new Map<string, Match>();
-        for (const m of [...ongoing, ...scheduled, ...completed]) {
-          byId.set(m.matchId, m);
-        }
-        return [...byId.values()];
-      });
-    } catch (error) {
-      console.error('Failed to refresh live matches:', error);
-    }
   };
 
   const handlePredictionSubmit = (matchId: string, team1Score: number, team2Score: number) => {
@@ -165,27 +227,36 @@ const Dashboard: React.FC = () => {
       .catch(() => undefined);
   };
 
-  const sortByKickoff = (a: Match, b: Match) => {
-    const ta = Date.parse(a.matchTime ?? '');
-    const tb = Date.parse(b.matchTime ?? '');
-    if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
-    return (a.sequence ?? 0) - (b.sequence ?? 0);
-  };
+  const liveMatches = useMemo(
+    () => [...matches].filter((m) => isMatchLive(m, now)).sort(sortByKickoff),
+    [matches, now]
+  );
 
-  const liveMatches = useMemo(() => {
-    return [...matches]
-      .filter((m) => isMatchLive(m, now))
-      .sort(sortByKickoff);
-  }, [matches, now]);
-
-  const upcomingMatches = useMemo(() => {
-    return [...matches]
-      .filter((m) => isMatchUpcoming(m, now))
-      .sort(sortByKickoff)
-      .slice(0, 24);
-  }, [matches, now]);
+  const predictableMatches = useMemo(
+    () =>
+      [...matches]
+        .filter((m) => {
+          if (isMatchLive(m, now)) return false;
+          if (normalizeMatchStatus(m.status) !== 'scheduled') return false;
+          return (
+            isMatchOpenForPrediction(m, now) || isLockedAwaitingKickoff(m, now)
+          );
+        })
+        .sort(sortByKickoff)
+        .slice(0, 24),
+    [matches, now]
+  );
 
   const rankDisplay = myRank.rank === '-' ? '–' : `#${myRank.rank}`;
+
+  if (!authReady) {
+    return (
+      <div className="min-h-full bg-slate-50 flex flex-col items-center justify-center py-20">
+        <div className={spinner} />
+        <p className="mt-4 text-sm text-slate-600">Loading dashboard…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -219,21 +290,6 @@ const Dashboard: React.FC = () => {
           <span className={linkAccent}>→</span>
         </Link>
 
-        <div>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="font-display text-lg font-bold text-slate-900">Tournament predictions</h2>
-            <button
-              type="button"
-              onClick={() => setShowTournamentPredictions((open) => !open)}
-              className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition"
-              aria-expanded={showTournamentPredictions}
-            >
-              {showTournamentPredictions ? 'Hide' : 'Show'}
-            </button>
-          </div>
-          {showTournamentPredictions && <TournamentPredictions />}
-        </div>
-
         {liveMatches.length > 0 && (
           <div>
             <div className="mb-4 flex items-center gap-2">
@@ -248,13 +304,23 @@ const Dashboard: React.FC = () => {
                 const userPrediction = userPredictions.find(
                   (p) => getPredictionMatchId(p) === match.matchId
                 );
+                const showCommunityPicks =
+                  isMatchLive(match, now) && !isMatchOpenForPrediction(match, now);
                 return (
-                  <MatchCard
-                    key={match.matchId}
-                    match={match}
-                    userPrediction={userPrediction}
-                    onPredictionSubmit={handlePredictionSubmit}
-                  />
+                  <div key={match.matchId} className="space-y-3">
+                    <MatchCard
+                      match={match}
+                      userPrediction={userPrediction}
+                      onPredictionSubmit={handlePredictionSubmit}
+                    />
+                    {showCommunityPicks ? (
+                      <LiveMatchPredictionsList
+                        match={match}
+                        predictions={livePredictionsByMatchId[match.matchId] ?? []}
+                        currentUserId={user?.userId}
+                      />
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
@@ -269,9 +335,9 @@ const Dashboard: React.FC = () => {
               <div className={spinner} />
               <p className="mt-4 text-sm text-slate-600">Loading matches...</p>
             </div>
-          ) : upcomingMatches.length > 0 ? (
+          ) : predictableMatches.length > 0 ? (
             <div className="grid grid-cols-1 gap-4">
-              {upcomingMatches.map((match) => {
+              {predictableMatches.map((match) => {
                 const userPrediction = userPredictions.find(
                   (p) => getPredictionMatchId(p) === match.matchId
                 );
@@ -286,8 +352,19 @@ const Dashboard: React.FC = () => {
               })}
             </div>
           ) : (
-            <div className={`${cardPad} text-center py-10 text-slate-600 text-sm`}>
-              No open matches to predict right now
+            <div className={`${cardPad} text-center py-10 text-slate-600 text-sm space-y-2`}>
+              <p>No open matches to predict right now.</p>
+              {matches.length === 0 ? (
+                <p className="text-xs text-slate-500">
+                  No matches were loaded. Confirm the API is running and check{' '}
+                  <code className="text-emerald-700">/api/health</code> shows your database.
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Predictions close at each match&apos;s deadline (usually just before kickoff). Later
+                  fixtures may still open even when earlier ones have closed.
+                </p>
+              )}
             </div>
           )}
         </div>

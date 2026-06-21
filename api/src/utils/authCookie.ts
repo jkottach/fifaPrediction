@@ -20,26 +20,44 @@ export function setAuthCookie(res: Response, token: string): void {
   });
 }
 
-export function clearAuthCookie(res: Response): void {
-  res.clearCookie(AUTH_COOKIE_NAME, {
-    path: '/',
+const COOKIE_CLEAR_PATHS = ['/', '/api'] as const;
+
+function cookieClearOptions(path: string) {
+  return {
+    path,
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-  });
+    sameSite: 'lax' as const,
+  };
 }
 
-export function getTokenFromCookie(req: Request): string | undefined {
-  const raw = req.headers.cookie;
-  if (!raw || typeof raw !== 'string') return undefined;
+/** Clear duplicate auth_token cookies (e.g. after Azure → EC2 migration). */
+export function clearAuthCookie(res: Response): void {
+  for (const path of COOKIE_CLEAR_PATHS) {
+    res.clearCookie(AUTH_COOKIE_NAME, cookieClearOptions(path));
+  }
+}
 
+/** All auth_token values from Cookie header (browsers may send duplicates). */
+export function getTokensFromCookie(req: Request): string[] {
+  const raw = req.headers.cookie;
+  if (!raw || typeof raw !== 'string') return [];
+
+  const tokens: string[] = [];
   for (const part of raw.split(';')) {
     const trimmed = part.trim();
     const eq = trimmed.indexOf('=');
     if (eq === -1) continue;
     const name = trimmed.slice(0, eq);
     if (name !== AUTH_COOKIE_NAME) continue;
-    return decodeURIComponent(trimmed.slice(eq + 1));
+    const value = decodeURIComponent(trimmed.slice(eq + 1)).trim();
+    if (value) tokens.push(value);
   }
-  return undefined;
+  return tokens;
+}
+
+/** Last auth_token in the header — usually the newest after re-login. */
+export function getTokenFromCookie(req: Request): string | undefined {
+  const tokens = getTokensFromCookie(req);
+  return tokens.length > 0 ? tokens[tokens.length - 1] : undefined;
 }
