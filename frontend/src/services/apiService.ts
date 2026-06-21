@@ -84,9 +84,20 @@ class ApiService {
   }
 
   getAllMatches(status?: string, page?: number, limit?: number) {
+    const params: Record<string, string | number> = { page: page ?? 1, limit: limit ?? 10 };
+    if (status) params.status = status;
     return this.client.get('/matches', {
-      params: { status, page, limit },
-    });
+      params,
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
+  /** Upcoming matches open for predictions plus live (ongoing) matches — filtered server-side. */
+  getOpenMatches(page?: number, limit?: number) {
+    return this.client.get('/matches', {
+      params: { openForPredictions: 'true', page: page ?? 1, limit: limit ?? 5 },
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
   }
 
   getMatch(matchId: string) {
@@ -98,7 +109,9 @@ class ApiService {
   }
 
   getTournamentPrediction() {
-    return this.client.get('/tournament-predictions');
+    return this.client.get('/tournament-predictions', {
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
   }
 
   submitTournamentPrediction(data: {
@@ -117,13 +130,15 @@ class ApiService {
   getUserPredictions(page?: number, limit?: number) {
     return this.client.get('/predictions', {
       params: { page, limit },
-    });
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
   }
 
   getUserPredictionsFromResults(page?: number, limit?: number) {
     return this.client.get('/predictions/results/list', {
       params: { page, limit },
-    });
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
   }
 
   updatePrediction(predictionId: string, data: Record<string, unknown>) {
@@ -139,7 +154,20 @@ class ApiService {
   }
 
   getUserStats() {
-    return this.client.get('/leaderboard/stats');
+    return this.client.get('/leaderboard/stats', {
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
+  getLatestCompletedMatchTopEarners(limit?: number) {
+    return this.client.get('/matches/latest-completed/top-earners', {
+      params: { limit: limit ?? 50 },
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
+  getLiveMatchPredictions() {
+    return this.client.get('/matches/live/predictions');
   }
 }
 

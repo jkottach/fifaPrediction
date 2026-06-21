@@ -24,12 +24,17 @@ export const rejectCommunity = async (_req: AuthRequest, res: Response) => {
 
 export const finalizeMatch = async (req: AuthRequest, res: Response) => {
   try {
-    const { matchId, team1Score, team2Score } = req.body;
+    const { matchId, team1Score, team2Score, penaltyWinner } = req.body;
     if (team1Score === undefined || team2Score === undefined) {
       return res.status(400).json({ error: 'Both team scores are required' });
     }
 
-    const updated = await finalizeMatchScores(String(matchId), team1Score, team2Score);
+    const updated = await finalizeMatchScores(
+      String(matchId),
+      team1Score,
+      team2Score,
+      penaltyWinner ?? null
+    );
 
     res.json({
       message: 'Match finalized and points calculated successfully',

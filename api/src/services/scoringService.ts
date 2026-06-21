@@ -3,6 +3,7 @@ import {
   findUsersWithPredictionForMatch,
   updateMatchById,
   updatePredictionPointsForMatch,
+  applySnapshotsAfterMatchFinalized,
 } from '../db/repositories';
 
 interface ScoringCriteria {
@@ -10,6 +11,7 @@ interface ScoringCriteria {
   correctTeam1Score: number;
   correctTeam2Score: number;
   correctGoalDifference: number;
+  correctPenaltyWinner: number;
 }
 
 const SCORING: ScoringCriteria = {
@@ -17,6 +19,7 @@ const SCORING: ScoringCriteria = {
   correctTeam1Score: 2,
   correctTeam2Score: 2,
   correctGoalDifference: 1,
+  correctPenaltyWinner: 2,
 };
 
 export const calculatePredictionPoints = (
@@ -60,25 +63,41 @@ export const processMatchResults = async (matchId: string) => {
     const prediction = user.predictions.find((p) => p.matchId === matchId);
     if (!prediction) continue;
 
-    const points = calculatePredictionPoints(
+    let points = calculatePredictionPoints(
       prediction.team1Score,
       prediction.team2Score,
       match.team1Score!,
       match.team2Score!
     );
 
+    const isDraw = match.team1Score === match.team2Score;
+    if (
+      isDraw &&
+      prediction.team1Score === prediction.team2Score &&
+      match.penaltyWinner &&
+      prediction.penaltyWinner &&
+      prediction.penaltyWinner === match.penaltyWinner
+    ) {
+      points += SCORING.correctPenaltyWinner;
+    }
+
     await updatePredictionPointsForMatch(user._id.toString(), matchId, points);
   }
+
+  await applySnapshotsAfterMatchFinalized(matchId);
 };
 
 export const finalizeMatchScores = async (
   matchId: string,
   team1Score: number,
-  team2Score: number
+  team2Score: number,
+  penaltyWinner?: string | null
 ) => {
+  const winner = penaltyWinner ? String(penaltyWinner).trim() : '';
   const updated = await updateMatchById(matchId, {
     team1Score,
     team2Score,
+    penaltyWinner: winner || null,
     status: 'completed',
   });
   if (!updated) throw new Error('Match not found');

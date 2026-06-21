@@ -2,11 +2,12 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../lib/logger';
 import type { GroupChampionsPicks, GroupStageGroup } from '../db/types';
+import { TOURNAMENT_PREDICTION_DEADLINE_DEFAULT } from '../constants/tournamentDeadline';
 import {
   findTeamsByIds,
   findUserById,
-  getEarliestMatchKickoff,
   listGroupStageGroups,
+  loadTournamentOfficialResults,
   upsertTournamentPrediction,
 } from '../db/repositories';
 
@@ -19,8 +20,8 @@ function parseDeadline(): Date | null {
   return null;
 }
 
-async function resolvePredictionDeadline(): Promise<Date | null> {
-  return parseDeadline() ?? (await getEarliestMatchKickoff());
+function resolvePredictionDeadline(): Date {
+  return parseDeadline() ?? new Date(TOURNAMENT_PREDICTION_DEADLINE_DEFAULT);
 }
 
 function uniqueTeamIds(ids: string[]): boolean {
@@ -121,15 +122,20 @@ export const getTournamentPrediction = async (req: AuthRequest, res: Response) =
     const user = await findUserById(userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const deadline = await resolvePredictionDeadline();
+    const deadline = resolvePredictionDeadline();
     const stored = user.tournamentPrediction;
-    const stageGroups = await listGroupStageGroups();
+    const [stageGroups, officialResults] = await Promise.all([
+      listGroupStageGroups(),
+      loadTournamentOfficialResults(),
+    ]);
     const groups = await enrichGroupStageForApi(stageGroups);
+    const officialGroupChampions = officialResults?.groupChampions ?? {};
 
     if (!stored) {
       return res.json({
         prediction: null,
         groups,
+        officialGroupChampions,
         deadline: deadline?.toISOString() ?? null,
         isOpen: deadline ? new Date() < deadline : true,
       });
@@ -165,6 +171,7 @@ export const getTournamentPrediction = async (req: AuthRequest, res: Response) =
         updatedAt: stored.updatedAt,
       },
       groups,
+      officialGroupChampions,
       deadline: deadline?.toISOString() ?? null,
       isOpen: deadline ? new Date() < deadline : true,
     });
@@ -188,8 +195,8 @@ export const submitTournamentPrediction = async (req: AuthRequest, res: Response
       groupChampions?: GroupChampionsPicks;
     };
 
-    const deadline = await resolvePredictionDeadline();
-    if (deadline && new Date() >= deadline) {
+    const deadline = resolvePredictionDeadline();
+    if (new Date() >= deadline) {
       return res.status(400).json({ error: 'Tournament prediction deadline has passed' });
     }
 
