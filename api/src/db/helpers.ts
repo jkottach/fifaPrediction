@@ -10,6 +10,14 @@ export function formatUserId(user: UserDocument): string {
   return user._id.toString();
 }
 
+export function isUserLeaderboardEligible(
+  user: Pick<UserDocument, 'isActive' | 'status'>
+): boolean {
+  if (user.isActive === false) return false;
+  const status = (user.status ?? 'active').trim().toLowerCase();
+  return status !== 'inactive' && status !== 'suspended';
+}
+
 export function formatMatchId(match: MatchDocument): string {
   return match._id.toString();
 }
@@ -33,6 +41,7 @@ export function formatMatchForApi(match: MatchDocument) {
     team2Info: match.team2Info ?? null,
     team1Score: match.team1Score ?? null,
     team2Score: match.team2Score ?? null,
+    penaltyWinner: match.penaltyWinner ?? null,
     matchTime: toIso(match.matchTime),
     predictionsEndingTime: toIso(match.predictionsEndingTime),
     round: match.round ?? '',

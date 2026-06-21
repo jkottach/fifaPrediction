@@ -42,6 +42,7 @@ export const register = async (req: AuthRequest, res: Response) => {
     });
 
     const token = generateToken(formatUserId(createdUser), email, 'user');
+    clearAuthCookie(res);
     setAuthCookie(res, token);
     res.status(201).json({
       message: 'User registered successfully',
@@ -110,6 +111,7 @@ export const googleLogin = async (req: AuthRequest, res: Response) => {
     }
 
     const token = generateToken(formatUserId(user), user.email, user.role);
+    clearAuthCookie(res);
     setAuthCookie(res, token);
     res.json({
       message: 'Google login successful',

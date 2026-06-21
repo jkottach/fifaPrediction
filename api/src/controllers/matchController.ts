@@ -5,11 +5,14 @@ import { buildMatchTag, formatMatchForApi } from '../db/helpers';
 import {
   createMatch as insertMatch,
   deleteMatchById,
+  findLatestCompletedMatch,
   findMatchById,
   getEnrichedMatch,
   getEnrichedMatches,
   listMatches,
+  listLiveMatchesWithPredictions,
   listTeamsForPicker,
+  listTopEarnersForMatch,
   resolveTeamInfoForMatch,
   updateMatchById,
 } from '../db/repositories';
@@ -34,21 +37,26 @@ function parseListQuery(query: AuthRequest['query']) {
   const rawPage = Array.isArray(query.page) ? query.page[0] : query.page;
   const rawLimit = Array.isArray(query.limit) ? query.limit[0] : query.limit;
   const rawStatus = Array.isArray(query.status) ? query.status[0] : query.status;
+  const rawOpen = Array.isArray(query.openForPredictions)
+    ? query.openForPredictions[0]
+    : query.openForPredictions;
 
   const pageNum = Math.max(1, parseInt(String(rawPage ?? '1'), 10) || 1);
   const limitNum = Math.min(100, Math.max(1, parseInt(String(rawLimit ?? '10'), 10) || 10));
   const status =
     typeof rawStatus === 'string' && rawStatus.trim() ? rawStatus.trim() : undefined;
+  const openForPredictions = rawOpen === 'true' || rawOpen === '1';
 
-  return { pageNum, limitNum, status };
+  return { pageNum, limitNum, status, openForPredictions };
 }
 
 export const getAllMatches = async (req: AuthRequest, res: Response) => {
   try {
-    const { pageNum, limitNum, status } = parseListQuery(req.query);
+    const { pageNum, limitNum, status, openForPredictions } = parseListQuery(req.query);
 
     const { matches, total } = await listMatches({
-      status,
+      status: openForPredictions ? undefined : status,
+      openForPredictions,
       page: pageNum,
       limit: limitNum,
     });
@@ -78,6 +86,66 @@ export const getAllMatches = async (req: AuthRequest, res: Response) => {
         ? { details: errorDetails.message }
         : {}),
     });
+  }
+};
+
+export const getLatestCompletedMatchTopEarners = async (req: AuthRequest, res: Response) => {
+  try {
+    const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(rawLimit ?? '50'), 10) || 50));
+
+    const latest = await findLatestCompletedMatch();
+    if (!latest) {
+      return res.json({ match: null, earners: [] });
+    }
+
+    const match = await getEnrichedMatch(latest);
+    const earners = await listTopEarnersForMatch(latest._id.toString(), limitNum);
+
+    res.json({ match, earners });
+  } catch (error) {
+    const errorDetails = logger.error('getLatestCompletedMatchTopEarners', error, {
+      method: req.method,
+      path: req.path,
+    });
+    res.status(errorDetails.statusCode || 500).json({ error: 'Failed to fetch latest match top earners' });
+  }
+};
+
+export const getLiveMatchPredictions = async (_req: AuthRequest, res: Response) => {
+  try {
+    const groups = await listLiveMatchesWithPredictions();
+
+    const matches = await Promise.all(
+      groups.map(async ({ match, predictions }) => {
+        let enrichedMatch;
+        try {
+          enrichedMatch = await getEnrichedMatch(match);
+        } catch {
+          enrichedMatch = formatMatchForApi(match);
+        }
+
+        return {
+          match: enrichedMatch,
+          predictions: predictions.map((p) => ({
+            userId: p.userId,
+            name: p.name,
+            team1Score: p.team1Score,
+            team2Score: p.team2Score,
+            submittedTime: p.submittedTime,
+            ...(p.comment ? { comment: p.comment } : {}),
+          })),
+        };
+      })
+    );
+
+    res.json({ matches });
+  } catch (error) {
+    const errorDetails = logger.error('getLiveMatchPredictions', error, {
+      method: 'GET',
+      path: '/matches/live/predictions',
+    });
+    res.status(errorDetails.statusCode || 500).json({ error: 'Failed to fetch live match predictions' });
   }
 };
 

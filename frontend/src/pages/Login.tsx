@@ -79,13 +79,17 @@ const Login: React.FC = () => {
 
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(profileUser));
+      login(token, profileUser);
 
-      const profileCheck = await apiService.getProfile();
-      login(token, profileCheck.data);
-
-      navigate(needsProfileSetup(profileCheck.data) ? '/profile-setup' : '/dashboard', {
+      navigate(needsProfileSetup(profileUser) ? '/profile-setup' : '/dashboard', {
         replace: true,
       });
+
+      // Refresh full profile in background (non-blocking; avoids stale-cookie 401 on Azure).
+      void apiService
+        .getProfile()
+        .then((profileCheck) => login(token, profileCheck.data))
+        .catch(() => undefined);
     } catch (err: unknown) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
