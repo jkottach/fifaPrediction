@@ -16,7 +16,7 @@ import { canRevealLivePredictions } from '../utils/matchStatus';
 import {
   enrichMatchWithTeams,
   isPickableNationTeamId,
-  sumPredictionPoints,
+  sumUserTotalPoints,
   teamMapFromDocs,
 } from './helpers';
 
@@ -83,9 +83,24 @@ export async function updateUserById(
 export async function recalculateUserTotalPoints(userId: string): Promise<number> {
   const user = await findUserById(userId);
   if (!user) return 0;
-  const totalPoints = sumPredictionPoints(user.predictions);
+  const totalPoints = sumUserTotalPoints(user);
   await updateUserById(userId, { totalPoints });
   return totalPoints;
+}
+
+export async function recalculateAllUserTotalPoints(): Promise<number> {
+  const users = await getUsersCollection().find({}).toArray();
+  let updated = 0;
+
+  for (const user of users) {
+    const totalPoints = sumUserTotalPoints(user);
+    if ((user.totalPoints ?? 0) !== totalPoints) {
+      await updateUserById(user._id.toString(), { totalPoints });
+      updated++;
+    }
+  }
+
+  return updated;
 }
 
 export async function upsertUserPrediction(
@@ -117,7 +132,7 @@ export async function upsertUserPrediction(
 
   await updateUserById(userId, {
     predictions,
-    totalPoints: sumPredictionPoints(predictions),
+    totalPoints: sumUserTotalPoints({ predictions, tournamentPrediction: user.tournamentPrediction }),
   });
   return predictions.find((p) => p.matchId === matchId) ?? null;
 }
@@ -134,7 +149,7 @@ export async function updatePredictionPointsForMatch(
   );
   await updateUserById(userId, {
     predictions,
-    totalPoints: sumPredictionPoints(predictions),
+    totalPoints: sumUserTotalPoints({ predictions, tournamentPrediction: user.tournamentPrediction }),
   });
 }
 
@@ -214,7 +229,10 @@ export async function upsertTournamentPrediction(
     updatedAt: now,
   };
 
-  await updateUserById(userId, { tournamentPrediction: entry });
+  await updateUserById(userId, {
+    tournamentPrediction: entry,
+    totalPoints: sumUserTotalPoints({ predictions: user.predictions, tournamentPrediction: entry }),
+  });
   return entry;
 }
 

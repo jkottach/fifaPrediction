@@ -15,6 +15,7 @@
     "seed:mongo": "tsx scripts/seedMongo.ts",
     "seed:export": "tsx scripts/exportSeedFromDb.ts",
     "backfill:prediction-snapshots": "tsx scripts/backfillPredictionSnapshots.ts",
+    "recalculate:points": "tsx scripts/recalculateUserTotalPoints.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
