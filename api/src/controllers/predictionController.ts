@@ -9,7 +9,7 @@ import {
   updateUserById,
   upsertUserPrediction,
 } from '../db/repositories';
-import { formatUserId, sumPredictionPoints } from '../db/helpers';
+import { formatUserId, computeUserTotalPoints } from '../db/helpers';
 import { isKnockoutMatch } from '../utils/knockout';
 import { normalizeGoalScore } from '../utils/goalScore';
 
@@ -166,7 +166,10 @@ export const deletePrediction = async (req: AuthRequest, res: Response) => {
     const predictions = user.predictions.filter((p) => p.matchId !== existing.matchId);
     await updateUserById(userId, {
       predictions,
-      totalPoints: sumPredictionPoints(predictions),
+      totalPoints: computeUserTotalPoints({
+        predictions,
+        tournamentPrediction: user.tournamentPrediction,
+      }),
     });
 
     res.json({ message: 'Prediction deleted successfully' });

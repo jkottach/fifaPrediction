@@ -7,7 +7,7 @@
 import '../src/config/loadEnv';
 import { connectMongo, disconnectMongo, getUsersCollection, getMatchesCollection } from '../src/lib/mongodb';
 import type { EmbeddedPrediction } from '../src/db/types';
-import { sumPredictionPoints } from '../src/db/helpers';
+import { computeUserTotalPoints } from '../src/db/helpers';
 import { isIntegerGoalScore, normalizeGoalScore } from '../src/utils/goalScore';
 import { processMatchResults } from '../src/services/scoringService';
 
@@ -46,7 +46,10 @@ async function main() {
       {
         $set: {
           predictions: nextPredictions,
-          totalPoints: sumPredictionPoints(nextPredictions),
+          totalPoints: computeUserTotalPoints({
+            predictions: nextPredictions,
+            tournamentPrediction: user.tournamentPrediction,
+          }),
           updatedAt: new Date(),
         },
       }

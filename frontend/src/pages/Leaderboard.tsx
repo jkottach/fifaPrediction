@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/apiService';
 import { LeaderboardEntry } from '../types';
 import Leaderboard from '../components/Leaderboard';
@@ -11,11 +11,7 @@ const LeaderboardPage: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadLeaderboard();
-  }, []);
-
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
       const res = await apiService.getTopLeaderboard(LEADERBOARD_LIMIT);
@@ -25,7 +21,21 @@ const LeaderboardPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadLeaderboard();
+  }, [loadLeaderboard]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void loadLeaderboard();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [loadLeaderboard]);
 
   return (
     <div className="min-h-full bg-slate-50">
