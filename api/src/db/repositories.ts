@@ -19,6 +19,7 @@ import {
   sumPredictionPoints,
   teamMapFromDocs,
 } from './helpers';
+import { normalizeGoalScore } from '../utils/goalScore';
 
 // ── Users (`users` collection) ───────────────────────────────────────────────
 
@@ -99,8 +100,8 @@ export async function upsertUserPrediction(
   const entry: EmbeddedPrediction = {
     matchId,
     matchTag: prediction.matchTag,
-    team1Score: prediction.team1Score,
-    team2Score: prediction.team2Score,
+    team1Score: normalizeGoalScore(prediction.team1Score),
+    team2Score: normalizeGoalScore(prediction.team2Score),
     points: prediction.points ?? 0,
     comment: prediction.comment ?? null,
     submittedTime: prediction.submittedTime ?? new Date(),

@@ -11,6 +11,7 @@ import {
 } from '../db/repositories';
 import { formatUserId, sumPredictionPoints } from '../db/helpers';
 import { isKnockoutMatch } from '../utils/knockout';
+import { normalizeGoalScore } from '../utils/goalScore';
 
 export const submitPrediction = async (req: AuthRequest, res: Response) => {
   try {
@@ -29,8 +30,11 @@ export const submitPrediction = async (req: AuthRequest, res: Response) => {
     const userBefore = await findUserById(userId);
     const isUpdate = !!userBefore?.predictions.some((p) => p.matchId === matchId);
 
+    const normalizedTeam1Score = normalizeGoalScore(team1Score);
+    const normalizedTeam2Score = normalizeGoalScore(team2Score);
+
     let resolvedPenaltyWinner: string | null = null;
-    if (isKnockoutMatch(match) && team1Score === team2Score) {
+    if (isKnockoutMatch(match) && normalizedTeam1Score === normalizedTeam2Score) {
       const pick = String(penaltyWinner ?? '').trim();
       if (!pick || (pick !== match.team1 && pick !== match.team2)) {
         return res.status(400).json({
@@ -42,8 +46,8 @@ export const submitPrediction = async (req: AuthRequest, res: Response) => {
 
     const prediction = await upsertUserPrediction(userId, matchId, {
       matchTag: match.matchTag,
-      team1Score,
-      team2Score,
+      team1Score: normalizedTeam1Score,
+      team2Score: normalizedTeam2Score,
       comment,
       penaltyWinner: resolvedPenaltyWinner,
       submittedTime: new Date(),
@@ -127,8 +131,8 @@ export const updatePrediction = async (req: AuthRequest, res: Response) => {
 
     const updated = await upsertUserPrediction(userId, existing.matchId, {
       matchTag: existing.matchTag,
-      team1Score: team1Score ?? existing.team1Score,
-      team2Score: team2Score ?? existing.team2Score,
+      team1Score: team1Score !== undefined ? normalizeGoalScore(team1Score) : existing.team1Score,
+      team2Score: team2Score !== undefined ? normalizeGoalScore(team2Score) : existing.team2Score,
       comment: comment ?? existing.comment,
       points: existing.points,
       submittedTime: new Date(),

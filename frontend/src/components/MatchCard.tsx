@@ -5,6 +5,13 @@ import { apiService } from '../services/apiService';
 import { getPredictionDeadlineIso, isMatchOpenForPrediction } from '../utils/matchDeadline';
 import { isMatchLive } from '../utils/matchStatus';
 import { needsPenaltyWinner } from '../utils/knockout';
+import {
+  GOAL_SCORE_MAX,
+  GoalScoreInput,
+  isValidGoalScore,
+  normalizeGoalScore,
+  parseGoalScoreInput,
+} from '../utils/goalScore';
 import PenaltyShootoutPicker from './PenaltyShootoutPicker';
 
 interface MatchCardProps {
@@ -69,8 +76,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
   const isPredictionOpen = !isOngoing && !isCompleted && isMatchOpenForPrediction(match);
   const predictionDeadlineIso = getPredictionDeadlineIso(match) ?? match.predictionsEndingTime;
 
-  const [team1Score, setTeam1Score] = useState<number | ''>('');
-  const [team2Score, setTeam2Score] = useState<number | ''>('');
+  const [team1Score, setTeam1Score] = useState<GoalScoreInput>('');
+  const [team2Score, setTeam2Score] = useState<GoalScoreInput>('');
   const [penaltyWinner, setPenaltyWinner] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -79,14 +86,14 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
   const countdown = useCountdown(predictionDeadlineIso ?? match.matchTime);
 
   const showPenaltyPicker = useMemo(() => {
-    if (team1Score === '' || team2Score === '') return false;
-    return needsPenaltyWinner(match, Number(team1Score), Number(team2Score));
+    if (!isValidGoalScore(team1Score) || !isValidGoalScore(team2Score)) return false;
+    return needsPenaltyWinner(match, team1Score, team2Score);
   }, [match, team1Score, team2Score]);
 
   useEffect(() => {
     if (userPrediction) {
-      setTeam1Score(userPrediction.team1Score);
-      setTeam2Score(userPrediction.team2Score);
+      setTeam1Score(normalizeGoalScore(userPrediction.team1Score));
+      setTeam2Score(normalizeGoalScore(userPrediction.team2Score));
       setPenaltyWinner(userPrediction.penaltyWinner ?? null);
     } else {
       setTeam1Score('');
@@ -99,31 +106,25 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
     if (!showPenaltyPicker) setPenaltyWinner(null);
   }, [showPenaltyPicker]);
 
+  const scoresValid = isValidGoalScore(team1Score) && isValidGoalScore(team2Score);
+  const canSubmit =
+    isPredictionOpen && scoresValid && (!showPenaltyPicker || Boolean(penaltyWinner));
+
   const handleSubmit = async () => {
-    if (!isPredictionOpen) return;
-    if (team1Score === '' || team2Score === '') {
-      setError('Enter both scores');
-      return;
-    }
-    const nextTeam1Score = Number(team1Score);
-    const nextTeam2Score = Number(team2Score);
-    if (needsPenaltyWinner(match, nextTeam1Score, nextTeam2Score) && !penaltyWinner) {
-      setError('Pick who wins the penalty shootout');
-      return;
-    }
+    if (!canSubmit) return;
     setError('');
     setLoading(true);
     try {
       await apiService.submitPrediction({
         matchId: match.matchId,
-        team1Score: nextTeam1Score,
-        team2Score: nextTeam2Score,
+        team1Score,
+        team2Score,
         comment: '',
         ...(penaltyWinner ? { penaltyWinner } : {}),
       });
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 2500);
-      if (onPredictionSubmit) onPredictionSubmit(match.matchId, nextTeam1Score, nextTeam2Score);
+      if (onPredictionSubmit) onPredictionSubmit(match.matchId, team1Score, team2Score);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to submit');
     } finally {
@@ -213,20 +214,30 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
             ) : (
               <>
                 <input
-                  type="number" min="0" max="20"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  min="0"
+                  max={GOAL_SCORE_MAX}
                   disabled={!isPredictionOpen || loading}
                   value={team1Score}
-                  onChange={(e) => setTeam1Score(e.target.value === '' ? '' : Math.min(20, Math.max(0, Number(e.target.value))))}
+                  onChange={(e) => setTeam1Score(parseGoalScoreInput(e.target.value))}
                   placeholder="–"
+                  autoComplete="off"
                   className="w-12 h-12 bg-white/10 border border-white/25 rounded-lg text-center text-white font-black text-xl focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 disabled:opacity-40 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <span className="text-white/30 font-bold text-lg">–</span>
                 <input
-                  type="number" min="0" max="20"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  min="0"
+                  max={GOAL_SCORE_MAX}
                   disabled={!isPredictionOpen || loading}
                   value={team2Score}
-                  onChange={(e) => setTeam2Score(e.target.value === '' ? '' : Math.min(20, Math.max(0, Number(e.target.value))))}
+                  onChange={(e) => setTeam2Score(parseGoalScoreInput(e.target.value))}
                   placeholder="–"
+                  autoComplete="off"
                   className="w-12 h-12 bg-white/10 border border-white/25 rounded-lg text-center text-white font-black text-xl focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 disabled:opacity-40 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </>
@@ -348,11 +359,11 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         ) : !isCompleted ? (
           <button
             onClick={handleSubmit}
-            disabled={loading || !isPredictionOpen}
+            disabled={loading || !canSubmit}
             className={`w-full py-2.5 rounded-xl text-sm font-bold tracking-wide transition-all duration-200 ${
               submitted
                 ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                : isPredictionOpen
+                : canSubmit
                 ? 'bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98] shadow-lg shadow-emerald-500/30'
                 : 'bg-white/8 text-white/25 cursor-not-allowed border border-white/10'
             }`}
