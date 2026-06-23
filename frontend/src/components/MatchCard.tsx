@@ -17,7 +17,12 @@ import PenaltyShootoutPicker from './PenaltyShootoutPicker';
 interface MatchCardProps {
   match: Match;
   userPrediction?: Prediction;
-  onPredictionSubmit?: (matchId: string, team1Score: number, team2Score: number) => void;
+  onPredictionSubmit?: (
+    matchId: string,
+    team1Score: number,
+    team2Score: number,
+    penaltyWinner?: string | null
+  ) => void;
 }
 
 // ── Countdown hook ─────────────────────────────────────────────────────────────
@@ -44,7 +49,7 @@ const Flag: React.FC<{ src?: string | null; alt: string }> = ({ src, alt }) => {
   const [err, setErr] = useState(false);
   if (!src || err) {
     return (
-      <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white font-bold text-xs shrink-0">
+      <div className="w-11 h-11 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white font-bold text-[10px] shrink-0">
         {alt.slice(0, 3)}
       </div>
     );
@@ -54,7 +59,7 @@ const Flag: React.FC<{ src?: string | null; alt: string }> = ({ src, alt }) => {
       src={src}
       alt={alt}
       onError={() => setErr(true)}
-      className="w-14 h-14 rounded-full object-cover border-2 border-white/30 shadow-lg shrink-0"
+      className="w-11 h-11 rounded-full object-cover border-2 border-white/30 shadow-md shrink-0"
     />
   );
 };
@@ -107,24 +112,30 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
   }, [showPenaltyPicker]);
 
   const scoresValid = isValidGoalScore(team1Score) && isValidGoalScore(team2Score);
+  const displayPenaltyWinner = penaltyWinner ?? userPrediction?.penaltyWinner ?? null;
   const canSubmit =
-    isPredictionOpen && scoresValid && (!showPenaltyPicker || Boolean(penaltyWinner));
+    isPredictionOpen && scoresValid && (!showPenaltyPicker || Boolean(displayPenaltyWinner));
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setError('');
     setLoading(true);
     try {
-      await apiService.submitPrediction({
+      const response = await apiService.submitPrediction({
         matchId: match.matchId,
         team1Score,
         team2Score,
         comment: '',
-        ...(penaltyWinner ? { penaltyWinner } : {}),
+        ...(displayPenaltyWinner ? { penaltyWinner: displayPenaltyWinner } : {}),
       });
+      const savedPenaltyWinner =
+        response.data?.prediction?.penaltyWinner ?? displayPenaltyWinner ?? null;
+      if (savedPenaltyWinner) setPenaltyWinner(savedPenaltyWinner);
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 2500);
-      if (onPredictionSubmit) onPredictionSubmit(match.matchId, team1Score, team2Score);
+      if (onPredictionSubmit) {
+        onPredictionSubmit(match.matchId, team1Score, team2Score, savedPenaltyWinner);
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to submit');
     } finally {
@@ -181,33 +192,33 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         </div>
       </div>
 
-      <div className="relative z-10 flex items-center justify-between px-4 py-3 gap-2">
-        <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+      <div className="relative z-10 flex items-center justify-between px-4 py-2 gap-1.5">
+        <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
           <Flag src={match.team1Info?.countryLogo} alt={match.team1} />
-          <span className="text-white font-bold text-[13px] text-center leading-tight line-clamp-2 max-w-[90px]">
+          <span className="text-white font-bold text-[11px] text-center leading-tight line-clamp-2 max-w-[80px]">
             {t1Name}
           </span>
         </div>
 
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          <div className="flex items-center gap-1.5">
+        <div className="flex flex-col items-center gap-0.5 shrink-0">
+          <div className="flex items-center gap-1">
             {isCompleted ? (
               <>
-                <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-xl">
+                <div className="w-10 h-10 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-lg">
                   {match.team1Score ?? 0}
                 </div>
-                <span className="text-white/40 font-bold text-lg">–</span>
-                <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-xl">
+                <span className="text-white/40 font-bold text-sm">–</span>
+                <div className="w-10 h-10 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-lg">
                   {match.team2Score ?? 0}
                 </div>
               </>
             ) : isOngoing ? (
               <>
-                <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-xl">
+                <div className="w-10 h-10 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-lg">
                   {userPrediction ? userPrediction.team1Score : '–'}
                 </div>
-                <span className="text-white/40 font-bold text-lg">–</span>
-                <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-xl">
+                <span className="text-white/40 font-bold text-sm">–</span>
+                <div className="w-10 h-10 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-white font-black text-lg">
                   {userPrediction ? userPrediction.team2Score : '–'}
                 </div>
               </>
@@ -224,9 +235,9 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
                   onChange={(e) => setTeam1Score(parseGoalScoreInput(e.target.value))}
                   placeholder="–"
                   autoComplete="off"
-                  className="w-12 h-12 bg-white/10 border border-white/25 rounded-lg text-center text-white font-black text-xl focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 disabled:opacity-40 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-10 h-10 bg-white/10 border border-white/25 rounded-lg text-center text-white font-black text-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 disabled:opacity-40 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-                <span className="text-white/30 font-bold text-lg">–</span>
+                <span className="text-white/30 font-bold text-sm">–</span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -238,29 +249,29 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
                   onChange={(e) => setTeam2Score(parseGoalScoreInput(e.target.value))}
                   placeholder="–"
                   autoComplete="off"
-                  className="w-12 h-12 bg-white/10 border border-white/25 rounded-lg text-center text-white font-black text-xl focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 disabled:opacity-40 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-10 h-10 bg-white/10 border border-white/25 rounded-lg text-center text-white font-black text-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400/40 disabled:opacity-40 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </>
             )}
           </div>
           {isOngoing && (
-            <span className="text-white/30 text-[9px] uppercase tracking-widest">
+            <span className="text-white/30 text-[8px] uppercase tracking-widest leading-none">
               {userPrediction ? 'Your Prediction' : 'No Prediction'}
             </span>
           )}
           {!isCompleted && !isOngoing && (
-            <span className="text-white/30 text-[9px] uppercase tracking-widest">
+            <span className="text-white/30 text-[8px] uppercase tracking-widest leading-none">
               {isPredictionOpen ? 'Your Prediction' : 'Closed'}
             </span>
           )}
           {isCompleted && (
-            <span className="text-white/30 text-[9px] uppercase tracking-widest">Final Score</span>
+            <span className="text-white/30 text-[8px] uppercase tracking-widest leading-none">Final Score</span>
           )}
         </div>
 
-        <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+        <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
           <Flag src={match.team2Info?.countryLogo} alt={match.team2} />
-          <span className="text-white font-bold text-[13px] text-center leading-tight line-clamp-2 max-w-[90px]">
+          <span className="text-white font-bold text-[11px] text-center leading-tight line-clamp-2 max-w-[80px]">
             {t2Name}
           </span>
         </div>
@@ -283,7 +294,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
               teamName: t2Name,
               countryLogo: match.team2Info?.countryLogo,
             }}
-            selectedTeamId={penaltyWinner}
+            selectedTeamId={displayPenaltyWinner}
             onSelect={setPenaltyWinner}
             disabled={loading}
             variant="dark"
@@ -291,15 +302,15 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         </div>
       )}
 
-      {(isOngoing || isCompleted || userPrediction?.penaltyWinner) &&
+      {(isOngoing || isCompleted) &&
         userPrediction &&
         userPrediction.team1Score === userPrediction.team2Score &&
-        userPrediction.penaltyWinner && (
+        displayPenaltyWinner && (
           <div className="relative z-10 px-4 pb-2">
-            <p className="text-center text-[10px] text-amber-300/80 font-semibold uppercase tracking-wider">
-              Penalties:{' '}
-              <span className="text-amber-200">
-                {userPrediction.penaltyWinner === match.team1 ? t1Name : t2Name} advances
+            <p className="text-center text-[10px] text-emerald-400/80 font-semibold uppercase tracking-wider">
+              Penalties ·{' '}
+              <span className="text-emerald-300/90">
+                {displayPenaltyWinner === match.team1 ? t1Name : t2Name} advances
               </span>
             </p>
           </div>

@@ -820,6 +820,7 @@ export async function attachMatchToPredictions(
       points: p.points,
       comment: p.comment,
       submittedTime: p.submittedTime,
+      penaltyWinner: p.penaltyWinner ?? null,
       cumulativeTotalPoints: p.cumulativeTotalPoints,
       overallRank: p.overallRank,
     };

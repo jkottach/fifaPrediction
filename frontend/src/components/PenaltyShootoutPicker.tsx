@@ -18,19 +18,22 @@ interface PenaltyShootoutPickerProps {
 const Flag: React.FC<{
   src?: string | null;
   alt: string;
-  size?: 'sm' | 'lg';
   isDark?: boolean;
-}> = ({ src, alt, size = 'lg', isDark = true }) => {
+  selected?: boolean;
+}> = ({ src, alt, isDark = true, selected = false }) => {
   const [err, setErr] = React.useState(false);
-  const dim = size === 'lg' ? 'w-12 h-12' : 'w-9 h-9';
 
   if (!src || err) {
     return (
       <div
-        className={`${dim} rounded-full flex items-center justify-center font-bold text-xs shrink-0 border-2 ${
-          isDark
-            ? 'bg-white/10 border-white/20 text-white'
-            : 'bg-slate-100 border-slate-200 text-slate-600'
+        className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 border-2 ${
+          selected
+            ? isDark
+              ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-100'
+              : 'bg-emerald-100 border-emerald-500 text-emerald-800'
+            : isDark
+            ? 'bg-white/10 border-white/15 text-white/60'
+            : 'bg-slate-100 border-slate-200 text-slate-500'
         }`}
       >
         {alt.slice(0, 3)}
@@ -43,8 +46,14 @@ const Flag: React.FC<{
       src={src}
       alt={alt}
       onError={() => setErr(true)}
-      className={`${dim} rounded-full object-cover border-2 shrink-0 shadow-lg ${
-        isDark ? 'border-white/30' : 'border-slate-200'
+      className={`w-11 h-11 rounded-full object-cover border-2 shrink-0 transition-all duration-200 ${
+        selected
+          ? isDark
+            ? 'border-emerald-400 ring-2 ring-emerald-400/30'
+            : 'border-emerald-500 ring-2 ring-emerald-500/20'
+          : isDark
+          ? 'border-white/20 opacity-75'
+          : 'border-slate-200'
       }`}
     />
   );
@@ -60,7 +69,7 @@ const PenaltyShootoutPicker: React.FC<PenaltyShootoutPickerProps> = ({
 }) => {
   const isDark = variant === 'dark';
 
-  const renderTeam = (team: PenaltyTeamOption, side: 'left' | 'right') => {
+  const renderSegment = (team: PenaltyTeamOption) => {
     const selected = selectedTeamId === team.teamId;
 
     return (
@@ -68,129 +77,93 @@ const PenaltyShootoutPicker: React.FC<PenaltyShootoutPickerProps> = ({
         type="button"
         disabled={disabled}
         onClick={() => onSelect(team.teamId)}
-        className={`group relative flex-1 min-w-0 rounded-xl p-2 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/80 ${
+        className={`group relative flex flex-1 flex-col items-center gap-2 px-2 py-3.5 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400/50 ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         } ${
           selected
             ? isDark
-              ? 'bg-gradient-to-br from-emerald-500/25 to-emerald-900/40 border-2 border-emerald-400/70 shadow-lg shadow-emerald-500/25 scale-[1.02]'
-              : 'bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-500 shadow-md scale-[1.02]'
+              ? 'bg-emerald-500/12'
+              : 'bg-emerald-50'
             : isDark
-            ? 'bg-white/5 border border-white/15 hover:bg-white/10 hover:border-white/25'
-            : 'bg-slate-50 border border-slate-200 hover:border-slate-300 hover:bg-white'
+            ? 'hover:bg-white/[0.03]'
+            : 'hover:bg-slate-50'
         }`}
         aria-pressed={selected}
         aria-label={`${team.teamName} wins on penalties`}
       >
+        <Flag
+          src={team.countryLogo}
+          alt={team.teamId}
+          isDark={isDark}
+          selected={selected}
+        />
+        <span
+          className={`text-center text-[11px] font-semibold leading-tight line-clamp-2 max-w-[88px] ${
+            selected
+              ? isDark
+                ? 'text-emerald-200'
+                : 'text-emerald-800'
+              : isDark
+              ? 'text-white/60 group-hover:text-white/80'
+              : 'text-slate-500 group-hover:text-slate-700'
+          }`}
+        >
+          {team.teamName}
+        </span>
         {selected && (
           <span
-            className={`absolute -top-2 ${side === 'left' ? 'left-2' : 'right-2'} px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider ${
-              isDark ? 'bg-emerald-500 text-white shadow-lg' : 'bg-emerald-600 text-white'
+            className={`text-[9px] font-bold uppercase tracking-wider ${
+              isDark ? 'text-emerald-400' : 'text-emerald-600'
             }`}
           >
             Advances
           </span>
         )}
-
-        <div className="flex flex-col items-center gap-1.5 pt-0.5">
-          <div className={`relative ${selected ? 'animate-pulse' : ''}`}>
-            <Flag
-              src={team.countryLogo}
-              alt={team.teamId}
-              size="lg"
-              isDark={isDark}
-            />
-            {selected && (
-              <span
-                className={`absolute -bottom-1 -right-1 w-4.5 h-4.5 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                  isDark ? 'bg-emerald-400 text-slate-900' : 'bg-emerald-500 text-white'
-                }`}
-              >
-                ✓
-              </span>
-            )}
-          </div>
-          <span
-            className={`text-[11px] font-bold text-center leading-tight line-clamp-2 ${
-              selected
-                ? isDark
-                  ? 'text-emerald-100'
-                  : 'text-emerald-800'
-                : isDark
-                ? 'text-white/80'
-                : 'text-slate-700'
-            }`}
-          >
-            {team.teamName}
-          </span>
-        </div>
       </button>
     );
   };
 
   return (
     <div
-      className={`relative overflow-hidden rounded-xl border transition-all duration-500 ${
+      className={`fade-in rounded-xl border overflow-hidden ${
         isDark
-          ? 'border-amber-400/30 bg-gradient-to-br from-amber-500/10 via-slate-900/80 to-slate-900/90'
-          : 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50'
+          ? 'border-white/10 bg-white/[0.03]'
+          : 'border-slate-200 bg-slate-50'
       }`}
     >
       <div
-        className="absolute inset-0 opacity-[0.07] pointer-events-none"
-        style={{
-          backgroundImage:
-            'repeating-linear-gradient(90deg, transparent, transparent 18px, currentColor 18px, currentColor 19px)',
-        }}
-      />
-
-      <div className="relative z-10 px-3 pt-3 pb-2.5">
-        <div className="flex items-center justify-center gap-2 mb-0.5">
-          <span className="text-base" aria-hidden>
-            ⚽
-          </span>
-          <p
-            className={`text-[9px] font-bold uppercase tracking-[0.22em] ${
-              isDark ? 'text-amber-300/90' : 'text-amber-700'
-            }`}
-          >
-            Penalty shootout
-          </p>
-          <span className="text-base" aria-hidden>
-            🥅
-          </span>
-        </div>
+        className={`px-3 py-2 text-center border-b ${
+          isDark ? 'border-white/[0.06]' : 'border-slate-200'
+        }`}
+      >
         <p
-          className={`text-center text-[12px] font-semibold mb-2 ${
-            isDark ? 'text-white/90' : 'text-slate-800'
+          className={`text-[10px] font-bold uppercase tracking-[0.16em] ${
+            isDark ? 'text-emerald-400/90' : 'text-emerald-700'
           }`}
         >
-          Draw after extra time — pick the winner
+          Penalty shootout
         </p>
-
-        <div className="flex items-stretch gap-2">
-          {renderTeam(team1, 'left')}
-          <div
-            className={`flex flex-col items-center justify-center shrink-0 px-1 ${
-              isDark ? 'text-white/25' : 'text-slate-300'
-            }`}
-          >
-            <span className="text-[9px] font-bold uppercase tracking-widest">vs</span>
-            <span className="text-lg font-black leading-none mt-0.5">PK</span>
-          </div>
-          {renderTeam(team2, 'right')}
-        </div>
-
-        {!selectedTeamId && (
-          <p
-            className={`mt-2 text-center text-[10px] ${
-              isDark ? 'text-amber-200/70' : 'text-amber-800/80'
-            }`}
-          >
-            Tap a team to pick the shootout winner
-          </p>
-        )}
+        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
+          Tied score — pick who advances
+        </p>
       </div>
+
+      <div className={`flex divide-x ${isDark ? 'divide-white/[0.06]' : 'divide-slate-200'}`}>
+        {renderSegment(team1)}
+        {renderSegment(team2)}
+      </div>
+
+      {!selectedTeamId && (
+        <p
+          className={`text-center text-[10px] py-1.5 border-t ${
+            isDark
+              ? 'border-white/[0.06] text-white/25'
+              : 'border-slate-200 text-slate-400'
+          }`}
+        >
+          Required to submit
+        </p>
+      )}
     </div>
   );
 };
