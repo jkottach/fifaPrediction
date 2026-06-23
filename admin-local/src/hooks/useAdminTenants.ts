@@ -24,10 +24,9 @@ export function useAdminTenants(enabled = true) {
         setTenants(list);
         setSupportsAllTenants(multi);
         const stored = restoreTenantFromStorage();
-        const initial =
-          stored === ALL_TENANT_ID || (stored && list.some((t) => t.id === stored))
-            ? (stored ?? defaultTenantId)
-            : defaultTenantId;
+        const storedIsValidTenant = stored && list.some((t) => t.id === stored);
+        const storedIsAll = stored === ALL_TENANT_ID && multi;
+        const initial = storedIsAll || storedIsValidTenant ? stored! : defaultTenantId;
         setSelectedTenantId(initial);
         setActiveTenantId(initial);
         if (initial === ALL_TENANT_ID) {

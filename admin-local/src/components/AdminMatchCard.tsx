@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { finalizeMatch, getActiveTenantId } from '../api';
 import { ALL_TENANT_ID } from '../types';
 import type { Match, ResolvedKnockoutMatch } from '../types';
 import { formatResolvedKnockoutMessage, isPlaceholderTeamId } from '../utils/placeholders';
+import { isKnockoutMatch, needsPenaltyWinner } from '../utils/knockout';
+import AdminPenaltyPicker from './AdminPenaltyPicker';
 
 interface AdminMatchCardProps {
   match: Match;
@@ -22,6 +24,7 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
   const [team2Score, setTeam2Score] = useState<string>(
     match.team2Score != null ? String(match.team2Score) : ''
   );
+  const [penaltyWinner, setPenaltyWinner] = useState<string | null>(match.penaltyWinner ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -29,7 +32,8 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
   useEffect(() => {
     setTeam1Score(match.team1Score != null ? String(match.team1Score) : '');
     setTeam2Score(match.team2Score != null ? String(match.team2Score) : '');
-  }, [match.matchId, match.team1Score, match.team2Score]);
+    setPenaltyWinner(match.penaltyWinner ?? null);
+  }, [match.matchId, match.team1Score, match.team2Score, match.penaltyWinner]);
 
   const t1 = match.team1Info?.teamName ?? match.team1;
   const t2 = match.team2Info?.teamName ?? match.team2;
@@ -37,9 +41,32 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
   const hasPlaceholders =
     isPlaceholderTeamId(match.team1) || isPlaceholderTeamId(match.team2);
 
+  const parsedTeam1 = team1Score === '' ? null : Number(team1Score);
+  const parsedTeam2 = team2Score === '' ? null : Number(team2Score);
+  const scoresValid =
+    parsedTeam1 !== null &&
+    parsedTeam2 !== null &&
+    Number.isFinite(parsedTeam1) &&
+    Number.isFinite(parsedTeam2);
+
+  const showPenaltyPicker = useMemo(() => {
+    if (!scoresValid || parsedTeam1 === null || parsedTeam2 === null) return false;
+    return needsPenaltyWinner(match, parsedTeam1, parsedTeam2);
+  }, [match, parsedTeam1, parsedTeam2, scoresValid]);
+
+  useEffect(() => {
+    if (!showPenaltyPicker) setPenaltyWinner(null);
+  }, [showPenaltyPicker]);
+
+  const canSubmit = scoresValid && (!showPenaltyPicker || Boolean(penaltyWinner));
+
   const handleSubmit = async () => {
-    if (team1Score === '' || team2Score === '') {
+    if (!scoresValid || parsedTeam1 === null || parsedTeam2 === null) {
       setError('Enter both final scores');
+      return;
+    }
+    if (showPenaltyPicker && !penaltyWinner) {
+      setError('Pick who won the penalty shootout');
       return;
     }
 
@@ -50,9 +77,10 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
     try {
       const { match: updated, message, outcomes, resolved } = await finalizeMatch(
         match.matchId,
-        Number(team1Score),
-        Number(team2Score),
-        match.matchTag
+        parsedTeam1,
+        parsedTeam2,
+        match.matchTag,
+        showPenaltyPicker ? penaltyWinner : null
       );
       const failed = outcomes?.filter((o) => !o.ok) ?? [];
       const knockoutMsg = formatResolvedKnockoutMessage(resolved ?? []);
@@ -83,6 +111,13 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
     }
   };
 
+  const penaltyWinnerName =
+    match.penaltyWinner === match.team1
+      ? t1
+      : match.penaltyWinner === match.team2
+        ? t2
+        : null;
+
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -96,6 +131,7 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
           <p className="mt-1 text-xs text-slate-500">
             {format(new Date(match.matchTime), 'MMM dd, yyyy · h:mm a')}
             {match.round ? ` · ${match.round}` : ''}
+            {isKnockoutMatch(match) ? ' · Knockout' : ''}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
@@ -119,9 +155,16 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
       </div>
 
       {isCompleted && match.team1Score != null && match.team2Score != null && (
-        <p className="mb-2 text-center font-display text-2xl font-bold text-slate-900">
-          {match.team1Score} – {match.team2Score}
-        </p>
+        <div className="mb-2 text-center">
+          <p className="font-display text-2xl font-bold text-slate-900">
+            {match.team1Score} – {match.team2Score}
+          </p>
+          {penaltyWinnerName && (
+            <p className="mt-1 text-xs font-semibold text-emerald-700">
+              Penalties: {penaltyWinnerName} advances
+            </p>
+          )}
+        </div>
       )}
 
       <div className="flex items-center justify-center gap-3 py-2">
@@ -146,6 +189,24 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
         />
       </div>
 
+      {showPenaltyPicker && (
+        <AdminPenaltyPicker
+          team1={{
+            teamId: match.team1,
+            teamName: t1,
+            countryLogo: match.team1Info?.countryLogo,
+          }}
+          team2={{
+            teamId: match.team2,
+            teamName: t2,
+            countryLogo: match.team2Info?.countryLogo,
+          }}
+          selectedTeamId={penaltyWinner}
+          onSelect={setPenaltyWinner}
+          disabled={loading}
+        />
+      )}
+
       {error && (
         <p className="mb-2 text-center text-xs font-medium text-red-600">{error}</p>
       )}
@@ -156,7 +217,7 @@ const AdminMatchCard: React.FC<AdminMatchCardProps> = ({
       <button
         type="button"
         onClick={handleSubmit}
-        disabled={loading}
+        disabled={loading || !canSubmit}
         className="mt-2 w-full min-h-[44px] rounded-xl bg-emerald-500 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50 transition"
       >
         {loading

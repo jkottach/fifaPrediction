@@ -9,6 +9,7 @@ export interface Match {
   team2: string;
   team1Score?: number | null;
   team2Score?: number | null;
+  penaltyWinner?: string | null;
   matchTime: string;
   predictionsEndingTime: string;
   round: string;

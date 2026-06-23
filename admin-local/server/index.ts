@@ -24,6 +24,7 @@ import type { TournamentBracketPrediction } from './tournamentScoring.js';
 import { computeGroupStandings } from './groupStandings.js';
 import { resolveKnockoutTeams, type ResolvedMatchUpdate } from './knockoutResolver.js';
 import { applySnapshotsAfterMatchFinalized } from './predictionSnapshots.js';
+import { isKnockoutMatch } from './knockout.js';
 import {
   adminAuthMiddleware,
   loginWithPin,
@@ -46,6 +47,7 @@ interface EmbeddedPrediction {
   points: number;
   comment?: string | null;
   submittedTime: Date;
+  penaltyWinner?: string | null;
   cumulativeTotalPoints?: number;
   overallRank?: number | null;
 }
@@ -77,6 +79,7 @@ interface MatchDocument {
   team2Info?: { teamName: string; countryLogo?: string | null } | null;
   team1Score?: number | null;
   team2Score?: number | null;
+  penaltyWinner?: string | null;
   matchTime: Date;
   predictionsEndingTime: Date;
   round: string;
@@ -147,6 +150,7 @@ function formatMatchForApi(match: MatchDocument, teamById: Map<string, TeamDocum
     team2Info: match.team2Info ?? (info2 ? { teamName: info2.teamName, countryLogo: info2.countryLogo ?? null } : null),
     team1Score: match.team1Score ?? null,
     team2Score: match.team2Score ?? null,
+    penaltyWinner: match.penaltyWinner ?? null,
     matchTime: toIso(match.matchTime),
     predictionsEndingTime: toIso(match.predictionsEndingTime),
     round: match.round ?? '',
@@ -246,20 +250,33 @@ async function processMatchResults(
   db: Db,
   matchId: string,
   actualTeam1: number,
-  actualTeam2: number
+  actualTeam2: number,
+  matchPenaltyWinner?: string | null
 ) {
   const withPredictions = await users(db).find({ 'predictions.matchId': matchId }).toArray();
+  const isDraw = actualTeam1 === actualTeam2;
 
   for (const user of withPredictions) {
     const prediction = user.predictions.find((p) => p.matchId === matchId);
     if (!prediction) continue;
 
-    const points = calculatePredictionPoints(
+    let points = calculatePredictionPoints(
       prediction.team1Score,
       prediction.team2Score,
       actualTeam1,
       actualTeam2
     );
+
+    if (
+      isDraw &&
+      prediction.team1Score === prediction.team2Score &&
+      matchPenaltyWinner &&
+      prediction.penaltyWinner &&
+      prediction.penaltyWinner === matchPenaltyWinner
+    ) {
+      points += 2;
+    }
+
     await updatePredictionPointsForMatch(db, user._id.toString(), matchId, points);
   }
 
@@ -288,10 +305,23 @@ async function finalizeMatchScores(
   matchId: string,
   team1Score: number,
   team2Score: number,
-  matchTag?: string
+  matchTag?: string,
+  penaltyWinner?: string | null
 ): Promise<{ match: MatchDocument; resolved: ResolvedMatchUpdate[] }> {
   const existing = await findMatchDocument(db, matchId, matchTag);
   if (!existing) throw new Error('Match not found');
+
+  const isDraw = team1Score === team2Score;
+  const knockout = isKnockoutMatch(existing);
+  let resolvedPenaltyWinner: string | null = null;
+
+  if (isDraw && knockout) {
+    const pick = String(penaltyWinner ?? '').trim();
+    if (!pick || (pick !== existing.team1 && pick !== existing.team2)) {
+      throw new Error('Pick who won the penalty shootout for a knockout draw');
+    }
+    resolvedPenaltyWinner = pick;
+  }
 
   const resolvedId = existing._id.toString();
 
@@ -301,6 +331,7 @@ async function finalizeMatchScores(
       $set: {
         team1Score,
         team2Score,
+        penaltyWinner: resolvedPenaltyWinner,
         status: 'completed',
         updatedAt: new Date(),
       },
@@ -310,7 +341,7 @@ async function finalizeMatchScores(
 
   if (!result) throw new Error('Match not found');
 
-  await processMatchResults(db, resolvedId, team1Score, team2Score);
+  await processMatchResults(db, resolvedId, team1Score, team2Score, resolvedPenaltyWinner);
   const resolved = await resolveKnockoutTeams(db, matches(db), teams(db));
   return { match: result, resolved };
 }
@@ -520,13 +551,15 @@ app.get('/api/leaderboard/top', async (req, res) => {
 app.post('/api/local-admin/finalize-match', async (req, res) => {
   const { tenantId } = req as TenantRequest;
   try {
-    const { matchId, team1Score, team2Score, matchTag } = req.body ?? {};
+    const { matchId, team1Score, team2Score, matchTag, penaltyWinner } = req.body ?? {};
     if (!matchId || team1Score === undefined || team2Score === undefined) {
       return res.status(400).json({ error: 'matchId, team1Score, and team2Score are required' });
     }
 
     const scores = { team1Score: Number(team1Score), team2Score: Number(team2Score) };
     const tag = typeof matchTag === 'string' ? matchTag : undefined;
+    const penalty =
+      typeof penaltyWinner === 'string' && penaltyWinner.trim() ? penaltyWinner.trim() : null;
 
     if (isAllTenantsMode(tenantId)) {
       const outcomes: Array<{
@@ -548,7 +581,8 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
             String(matchId),
             scores.team1Score,
             scores.team2Score,
-            tag
+            tag,
+            penalty
           );
           const teamIds = [updated.team1, updated.team2];
           const teamDocs = await teams(tdb).find({ teamId: { $in: teamIds } }).toArray();
@@ -598,7 +632,8 @@ app.post('/api/local-admin/finalize-match', async (req, res) => {
       String(matchId),
       scores.team1Score,
       scores.team2Score,
-      tag
+      tag,
+      penalty
     );
     const teamIds = [updated.team1, updated.team2];
     const teamDocs = await teams(db).find({ teamId: { $in: teamIds } }).toArray();

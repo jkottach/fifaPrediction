@@ -115,13 +115,15 @@ export async function finalizeMatch(
   matchId: string,
   team1Score: number,
   team2Score: number,
-  matchTag?: string
+  matchTag?: string,
+  penaltyWinner?: string | null
 ) {
   const res = await client.post('/local-admin/finalize-match', {
     matchId,
     team1Score,
     team2Score,
     matchTag,
+    ...(penaltyWinner ? { penaltyWinner } : {}),
   });
   return res.data as {
     message: string;
