@@ -168,6 +168,12 @@ const Home: React.FC = () => {
                   +{MATCH_POINTS.correctGoalDifference}
                 </span>
               </li>
+              <li className="flex justify-between gap-3">
+                <span>Correct penalty shootout winner (knockout draws)</span>
+                <span className="font-semibold text-emerald-700 shrink-0">
+                  +{MATCH_POINTS.correctPenaltyWinner}
+                </span>
+              </li>
             </ul>
             <p className="mt-3 text-[12px] text-slate-500">
               Up to {MATCH_POINTS.maxPerMatch} points per match if you get everything right.

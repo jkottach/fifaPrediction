@@ -268,6 +268,121 @@ export async function listGroupStageGroups(): Promise<GroupStageGroup[]> {
     }));
 }
 
+export interface CommunityTournamentPickRow {
+  userId: string;
+  name: string;
+  champion: string;
+  finalists: [string, string];
+  semifinalists: [string, string, string, string];
+  groupChampions?: GroupChampionsPicks;
+  points: number;
+  submittedTime: Date;
+}
+
+export interface CommunityTeamCount {
+  teamId: string;
+  count: number;
+  pct?: number;
+}
+
+export interface CommunityTournamentConsensus {
+  champion: CommunityTeamCount[];
+  groupChampions: Record<string, CommunityTeamCount[]>;
+  semifinalists: CommunityTeamCount[];
+  finalists: CommunityTeamCount[];
+}
+
+function incrementCount(map: Map<string, number>, teamId: string): void {
+  const id = teamId.trim().toUpperCase();
+  if (!id) return;
+  map.set(id, (map.get(id) ?? 0) + 1);
+}
+
+function sortedCounts(map: Map<string, number>, total: number): CommunityTeamCount[] {
+  return [...map.entries()]
+    .map(([teamId, count]) => ({ teamId, count, pct: total > 0 ? Math.round((count / total) * 100) : 0 }))
+    .sort((a, b) => b.count - a.count || a.teamId.localeCompare(b.teamId));
+}
+
+export async function listCommunityTournamentPredictions(): Promise<{
+  picks: CommunityTournamentPickRow[];
+  consensus: CommunityTournamentConsensus;
+  submittedCount: number;
+}> {
+  const users = await getUsersCollection()
+    .find({
+      ...activeUserFilter,
+      tournamentPrediction: { $exists: true, $ne: null },
+    })
+    .toArray();
+
+  const picks: CommunityTournamentPickRow[] = [];
+  const championCounts = new Map<string, number>();
+  const semifinalistCounts = new Map<string, number>();
+  const finalistCounts = new Map<string, number>();
+  const groupCounts = new Map<string, Map<string, number>>();
+
+  for (const user of users) {
+    const stored = user.tournamentPrediction;
+    if (!stored?.champion) continue;
+
+    picks.push({
+      userId: user._id.toString(),
+      name: leaderboardDisplayName(user),
+      champion: stored.champion,
+      finalists: stored.finalists,
+      semifinalists: stored.semifinalists,
+      groupChampions: stored.groupChampions,
+      points: stored.points ?? 0,
+      submittedTime: stored.submittedTime,
+    });
+
+    incrementCount(championCounts, stored.champion);
+    for (const semi of stored.semifinalists) incrementCount(semifinalistCounts, semi);
+    for (const fin of stored.finalists) incrementCount(finalistCounts, fin);
+    if (stored.groupChampions) {
+      for (const [group, teamId] of Object.entries(stored.groupChampions)) {
+        const g = group.trim().toUpperCase();
+        if (!g) continue;
+        if (!groupCounts.has(g)) groupCounts.set(g, new Map());
+        incrementCount(groupCounts.get(g)!, teamId);
+      }
+    }
+  }
+
+  const submittedCount = picks.length;
+
+  picks.sort((a, b) => {
+    const pointsDiff = b.points - a.points;
+    if (pointsDiff !== 0) return pointsDiff;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+
+  const groupChampionsConsensus: Record<string, CommunityTeamCount[]> = {};
+  for (const [group, counts] of groupCounts.entries()) {
+    groupChampionsConsensus[group] = sortedCounts(counts, submittedCount).map(
+      ({ teamId, count }) => ({ teamId, count })
+    );
+  }
+
+  return {
+    picks,
+    submittedCount,
+    consensus: {
+      champion: sortedCounts(championCounts, submittedCount),
+      groupChampions: groupChampionsConsensus,
+      semifinalists: sortedCounts(semifinalistCounts, submittedCount).map(({ teamId, count }) => ({
+        teamId,
+        count,
+      })),
+      finalists: sortedCounts(finalistCounts, submittedCount).map(({ teamId, count }) => ({
+        teamId,
+        count,
+      })),
+    },
+  };
+}
+
 /** Active users; legacy docs without `isActive` are included. */
 const activeUserFilter: Filter<UserDocument> = {
   $or: [{ isActive: true }, { isActive: { $exists: false } }],

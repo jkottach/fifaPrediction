@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { Match, MatchEarnerEntry, Prediction } from '../types';
 import PredictionForm from '../components/PredictionForm';
 import PageHero from '../components/PageHero';
 import TournamentPredictionHistoryCard from '../components/TournamentPredictionHistoryCard';
+import CommunityTournamentPicks from '../components/CommunityTournamentPicks';
+import { useAuth } from '../hooks/useAuth';
 import { btnPrimary, cardPad, spinner } from '../theme';
 import { format } from 'date-fns';
 import { TournamentPrediction } from '../types';
 
-type ViewMode = 'mine' | 'latest-top';
+type ViewMode = 'mine' | 'latest-top' | 'community';
 
 const statCell =
   'rounded-lg border border-slate-100 bg-slate-50 px-1.5 py-2 text-center';
@@ -19,7 +21,13 @@ const statValue = 'font-display text-sm font-bold leading-tight text-slate-900 t
 const statValueMono = `font-mono text-sm font-bold leading-tight text-slate-900 tabular-nums`;
 
 const MyPredictions: React.FC = () => {
-  const [view, setView] = useState<ViewMode>('mine');
+  const { user } = useAuth();
+  const location = useLocation();
+  const initialView =
+    (location.state as { view?: ViewMode } | null)?.view === 'community'
+      ? 'community'
+      : 'mine';
+  const [view, setView] = useState<ViewMode>(initialView);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
@@ -123,7 +131,9 @@ const MyPredictions: React.FC = () => {
         subtitle={
           view === 'mine'
             ? 'Completed matches and points earned'
-            : 'Rankings from the last finished match'
+            : view === 'latest-top'
+              ? 'Rankings from the last finished match'
+              : 'See how everyone picked the tournament'
         }
         badge="History"
       />
@@ -133,7 +143,7 @@ const MyPredictions: React.FC = () => {
           <button
             type="button"
             onClick={() => setView('mine')}
-            className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+            className={`flex-1 rounded-lg px-2 py-2.5 text-xs sm:text-sm font-semibold transition ${
               view === 'mine'
                 ? 'bg-slate-900 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-50'
@@ -144,7 +154,7 @@ const MyPredictions: React.FC = () => {
           <button
             type="button"
             onClick={() => setView('latest-top')}
-            className={`flex-1 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+            className={`flex-1 rounded-lg px-2 py-2.5 text-xs sm:text-sm font-semibold transition ${
               view === 'latest-top'
                 ? 'bg-slate-900 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-50'
@@ -152,9 +162,25 @@ const MyPredictions: React.FC = () => {
           >
             Last match rank
           </button>
+          <button
+            type="button"
+            onClick={() => setView('community')}
+            className={`flex-1 rounded-lg px-2 py-2.5 text-xs sm:text-sm font-semibold transition ${
+              view === 'community'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            Tournament picks
+          </button>
         </div>
 
-        {view === 'latest-top' ? (
+        {view === 'community' ? (
+          <CommunityTournamentPicks
+            currentUserId={user?.userId}
+            onGoToMine={() => setView('mine')}
+          />
+        ) : view === 'latest-top' ? (
           topEarnersLoading ? (
             <div className="flex flex-col items-center py-16">
               <div className={spinner} />

@@ -114,6 +114,18 @@ class ApiService {
     } as AuthRequestConfig);
   }
 
+  getCommunityTournamentPredictions() {
+    return this.client.get('/tournament-predictions/community', {
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
+  getUserTournamentPrediction(userId: string) {
+    return this.client.get(`/tournament-predictions/user/${userId}`, {
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
   submitTournamentPrediction(data: {
     champion: string;
     finalists: [string, string];
