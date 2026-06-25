@@ -179,6 +179,98 @@ export const deletePrediction = async (req: AuthRequest, res: Response) => {
   }
 };
 
+async function buildPredictionsFromResults(
+  userId: string,
+  page: string | number = '1',
+  limit: string | number = '10'
+) {
+  const user = await findUserById(userId);
+  if (!user) return null;
+
+  const populatedPredictions = await attachMatchToPredictions(user, [...user.predictions]);
+
+  const completedPredictions = populatedPredictions.filter((prediction) => {
+    const match = prediction.matchId as { status?: string } | null;
+    return match?.status === 'completed';
+  });
+
+  completedPredictions.sort((a, b) => {
+    const matchA = a.matchId as { matchTime?: string | Date } | null;
+    const matchB = b.matchId as { matchTime?: string | Date } | null;
+    const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
+    const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  const pageNum = parseInt(String(page), 10);
+  const limitNum = parseInt(String(limit), 10);
+  const total = completedPredictions.length;
+  const slice = completedPredictions.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+  const chronoSorted = [...completedPredictions].sort((a, b) => {
+    const matchA = a.matchId as { matchTime?: string | Date } | null;
+    const matchB = b.matchId as { matchTime?: string | Date } | null;
+    const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
+    const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
+    return timeA - timeB;
+  });
+
+  let runningTotal = 0;
+  const cumulativeFallbackById = new Map<string, number>();
+  for (const prediction of chronoSorted) {
+    runningTotal += prediction.points ?? 0;
+    cumulativeFallbackById.set(String(prediction.id), runningTotal);
+  }
+
+  const needsRankFallback = completedPredictions.some(
+    (p) => (p as { overallRank?: number | null }).overallRank == null
+  );
+  const rankFallback = needsRankFallback
+    ? await computeOverallRankByPredictionId(userId)
+    : new Map<string, number | null>();
+
+  const resolveRank = (predictionId: string, stored?: number | null) =>
+    stored ?? rankFallback.get(predictionId) ?? null;
+
+  let previousRank: number | null = null;
+  const previousRankByPredictionId = new Map<string, number | null>();
+  for (const prediction of chronoSorted) {
+    const predictionId = String(prediction.id);
+    previousRankByPredictionId.set(predictionId, previousRank);
+    const currentRank = resolveRank(
+      predictionId,
+      (prediction as { overallRank?: number | null }).overallRank
+    );
+    if (currentRank != null) {
+      previousRank = currentRank;
+    }
+  }
+
+  const predictionsWithMeta = slice.map((prediction) => {
+    const predictionId = String(prediction.id);
+    const storedTotal = (prediction as { cumulativeTotalPoints?: number }).cumulativeTotalPoints;
+    const storedRank = (prediction as { overallRank?: number | null }).overallRank;
+    const overallRank = resolveRank(predictionId, storedRank);
+
+    return {
+      ...prediction,
+      totalPoints: storedTotal ?? cumulativeFallbackById.get(predictionId) ?? 0,
+      overallRank,
+      previousOverallRank: previousRankByPredictionId.get(predictionId) ?? null,
+    };
+  });
+
+  return {
+    predictions: predictionsWithMeta,
+    pagination: {
+      total,
+      page: pageNum,
+      limit: limitNum,
+      pages: Math.ceil(total / limitNum) || 1,
+    },
+  };
+}
+
 export const getUserPredictionsFromResults = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
@@ -186,94 +278,34 @@ export const getUserPredictionsFromResults = async (req: AuthRequest, res: Respo
 
     if (!userId) return res.status(401).json({ error: 'User not authenticated' });
 
-    const user = await findUserById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const result = await buildPredictionsFromResults(userId, page as string, limit as string);
+    if (!result) return res.status(404).json({ error: 'User not found' });
 
-    const populatedPredictions = await attachMatchToPredictions(user, [...user.predictions]);
-
-    const completedPredictions = populatedPredictions.filter((prediction) => {
-      const match = prediction.matchId as { status?: string } | null;
-      return match?.status === 'completed';
-    });
-
-    completedPredictions.sort((a, b) => {
-      const matchA = a.matchId as { matchTime?: string | Date } | null;
-      const matchB = b.matchId as { matchTime?: string | Date } | null;
-      const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
-      const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
-      return timeB - timeA;
-    });
-
-    const pageNum = parseInt(page as string, 10);
-    const limitNum = parseInt(limit as string, 10);
-    const total = completedPredictions.length;
-    const slice = completedPredictions.slice((pageNum - 1) * limitNum, pageNum * limitNum);
-
-    const chronoSorted = [...completedPredictions].sort((a, b) => {
-      const matchA = a.matchId as { matchTime?: string | Date } | null;
-      const matchB = b.matchId as { matchTime?: string | Date } | null;
-      const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
-      const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
-      return timeA - timeB;
-    });
-
-    let runningTotal = 0;
-    const cumulativeFallbackById = new Map<string, number>();
-    for (const prediction of chronoSorted) {
-      runningTotal += prediction.points ?? 0;
-      cumulativeFallbackById.set(String(prediction.id), runningTotal);
-    }
-
-    const needsRankFallback = completedPredictions.some(
-      (p) => (p as { overallRank?: number | null }).overallRank == null
-    );
-    const rankFallback = needsRankFallback
-      ? await computeOverallRankByPredictionId(userId)
-      : new Map<string, number | null>();
-
-    const resolveRank = (predictionId: string, stored?: number | null) =>
-      stored ?? rankFallback.get(predictionId) ?? null;
-
-    let previousRank: number | null = null;
-    const previousRankByPredictionId = new Map<string, number | null>();
-    for (const prediction of chronoSorted) {
-      const predictionId = String(prediction.id);
-      previousRankByPredictionId.set(predictionId, previousRank);
-      const currentRank = resolveRank(
-        predictionId,
-        (prediction as { overallRank?: number | null }).overallRank
-      );
-      if (currentRank != null) {
-        previousRank = currentRank;
-      }
-    }
-
-    const predictionsWithMeta = slice.map((prediction) => {
-      const predictionId = String(prediction.id);
-      const storedTotal = (prediction as { cumulativeTotalPoints?: number }).cumulativeTotalPoints;
-      const storedRank = (prediction as { overallRank?: number | null }).overallRank;
-      const overallRank = resolveRank(predictionId, storedRank);
-
-      return {
-        ...prediction,
-        totalPoints: storedTotal ?? cumulativeFallbackById.get(predictionId) ?? 0,
-        overallRank,
-        previousOverallRank: previousRankByPredictionId.get(predictionId) ?? null,
-      };
-    });
-
-    res.json({
-      predictions: predictionsWithMeta,
-      pagination: {
-        total,
-        page: pageNum,
-        limit: limitNum,
-        pages: Math.ceil(total / limitNum) || 1,
-      },
-    });
+    res.json(result);
   } catch (error) {
     const errorDetails = logger.error('getUserPredictionsFromResults', error, {
       userId: req.user?.userId,
+    });
+    res.status(errorDetails.statusCode || 500).json({ error: 'Failed to fetch predictions' });
+  }
+};
+
+export const getUserPredictionsFromResultsByUserId = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.userId) return res.status(401).json({ error: 'User not authenticated' });
+
+    const targetUserId = String(req.params.userId ?? '').trim();
+    if (!targetUserId) return res.status(400).json({ error: 'User id is required' });
+
+    const { page = '1', limit = '10' } = req.query;
+    const result = await buildPredictionsFromResults(targetUserId, page as string, limit as string);
+    if (!result) return res.status(404).json({ error: 'User not found' });
+
+    res.json(result);
+  } catch (error) {
+    const errorDetails = logger.error('getUserPredictionsFromResultsByUserId', error, {
+      userId: req.user?.userId,
+      targetUserId: req.params.userId,
     });
     res.status(errorDetails.statusCode || 500).json({ error: 'Failed to fetch predictions' });
   }

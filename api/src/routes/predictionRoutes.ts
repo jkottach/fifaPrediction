@@ -9,6 +9,11 @@ const router = Router();
 router.post('/', authMiddleware, validateRequest(schemas.prediction), predictionController.submitPrediction);
 router.get('/', authMiddleware, predictionController.getUserPredictions);
 router.get('/results/list', authMiddleware, predictionController.getUserPredictionsFromResults);
+router.get(
+  '/user/:userId/results/list',
+  authMiddleware,
+  predictionController.getUserPredictionsFromResultsByUserId
+);
 router.put('/:predictionId', authMiddleware, validateRequest(schemas.predictionUpdate), predictionController.updatePrediction);
 router.delete('/:predictionId', authMiddleware, predictionController.deletePrediction);
 

@@ -27,7 +27,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ entries, title, onEntryClick 
       <div className="px-4 py-3 text-white" style={{ background: HERO_BG }}>
         <h2 className="font-display text-base font-bold">{title}</h2>
         {onEntryClick ? (
-          <p className="mt-0.5 text-xs text-white/70">Tap a player to view tournament picks</p>
+          <p className="mt-0.5 text-xs text-white/70">Tap a player to view match predictions</p>
         ) : null}
       </div>
 

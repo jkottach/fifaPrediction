@@ -153,6 +153,13 @@ class ApiService {
     } as AuthRequestConfig);
   }
 
+  getUserPredictionsFromResultsByUserId(userId: string, page?: number, limit?: number) {
+    return this.client.get(`/predictions/user/${userId}/results/list`, {
+      params: { page, limit },
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
+  }
+
   updatePrediction(predictionId: string, data: Record<string, unknown>) {
     return this.client.put(`/predictions/${predictionId}`, data);
   }

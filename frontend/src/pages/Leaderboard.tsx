@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import { apiService } from '../services/apiService';
-import { LeaderboardEntry, TournamentPrediction } from '../types';
+import { LeaderboardEntry, Prediction } from '../types';
 import Leaderboard from '../components/Leaderboard';
 import PageHero from '../components/PageHero';
-import TournamentPicksSheet from '../components/TournamentPicksSheet';
+import UserMatchPredictionsSheet from '../components/UserMatchPredictionsSheet';
 import { spinner } from '../theme';
 
 const LEADERBOARD_LIMIT = 50;
+const PREDICTIONS_PAGE_SIZE = 10;
 
 const LeaderboardPage: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
   const [sheetLoading, setSheetLoading] = useState(false);
-  const [sheetPrediction, setSheetPrediction] = useState<TournamentPrediction | null>(null);
-  const [sheetOfficialGroups, setSheetOfficialGroups] = useState<Record<string, string>>({});
+  const [sheetLoadingMore, setSheetLoadingMore] = useState(false);
+  const [sheetPredictions, setSheetPredictions] = useState<Prediction[]>([]);
+  const [sheetPagination, setSheetPagination] = useState({ page: 1, pages: 1 });
   const [sheetError, setSheetError] = useState<string | null>(null);
-  const [sheetLockedMessage, setSheetLockedMessage] = useState<string | null>(null);
 
   const loadLeaderboard = useCallback(async () => {
     try {
@@ -45,37 +45,58 @@ const LeaderboardPage: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [loadLeaderboard]);
 
+  const fetchUserPredictions = async (userId: string, page: number, append: boolean) => {
+    const res = await apiService.getUserPredictionsFromResultsByUserId(
+      userId,
+      page,
+      PREDICTIONS_PAGE_SIZE
+    );
+    const nextPredictions = res.data.predictions ?? [];
+    setSheetPredictions((current) => (append ? [...current, ...nextPredictions] : nextPredictions));
+    setSheetPagination({
+      page: res.data.pagination?.page ?? page,
+      pages: res.data.pagination?.pages ?? 1,
+    });
+  };
+
   const handleEntryClick = async (entry: LeaderboardEntry) => {
     setSelectedEntry(entry);
     setSheetLoading(true);
-    setSheetPrediction(null);
+    setSheetPredictions([]);
     setSheetError(null);
-    setSheetLockedMessage(null);
-    setSheetOfficialGroups({});
+    setSheetPagination({ page: 1, pages: 1 });
 
     try {
-      const res = await apiService.getUserTournamentPrediction(entry.userId);
-      setSheetPrediction(res.data?.prediction ?? null);
-      setSheetOfficialGroups(res.data?.officialGroupChampions ?? {});
+      await fetchUserPredictions(entry.userId, 1, false);
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 403) {
-        setSheetLockedMessage(
-          'Tournament picks are hidden until the prediction deadline passes.'
-        );
-        return;
-      }
-      console.error('Failed to load user tournament prediction:', err);
-      setSheetError('Failed to load tournament picks.');
+      console.error('Failed to load user match predictions:', err);
+      setSheetError('Failed to load predictions.');
     } finally {
       setSheetLoading(false);
     }
   };
 
+  const handleLoadMore = async () => {
+    if (!selectedEntry || sheetLoadingMore || sheetPagination.page >= sheetPagination.pages) {
+      return;
+    }
+
+    try {
+      setSheetLoadingMore(true);
+      await fetchUserPredictions(selectedEntry.userId, sheetPagination.page + 1, true);
+    } catch (err) {
+      console.error('Failed to load more predictions:', err);
+      setSheetError('Failed to load more predictions.');
+    } finally {
+      setSheetLoadingMore(false);
+    }
+  };
+
   const closeSheet = () => {
     setSelectedEntry(null);
-    setSheetPrediction(null);
+    setSheetPredictions([]);
     setSheetError(null);
-    setSheetLockedMessage(null);
+    setSheetPagination({ page: 1, pages: 1 });
   };
 
   return (
@@ -102,13 +123,14 @@ const LeaderboardPage: React.FC = () => {
       </div>
 
       {selectedEntry && (
-        <TournamentPicksSheet
+        <UserMatchPredictionsSheet
           name={selectedEntry.name}
-          prediction={sheetPrediction}
-          officialGroupChampions={sheetOfficialGroups}
+          predictions={sheetPredictions}
           loading={sheetLoading}
           error={sheetError}
-          lockedMessage={sheetLockedMessage}
+          hasMore={sheetPagination.page < sheetPagination.pages}
+          loadingMore={sheetLoadingMore}
+          onLoadMore={handleLoadMore}
           onClose={closeSheet}
         />
       )}
