@@ -33,7 +33,7 @@ const MyPredictions: React.FC = () => {
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [editingPrediction, setEditingPrediction] = useState<Prediction | null>(null);
   const [matchSlots, setMatchSlots] = useState<MatchSlotEarners[]>([]);
-  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState(0);
   const [topEarnersLoading, setTopEarnersLoading] = useState(false);
   const [tournamentPrediction, setTournamentPrediction] = useState<TournamentPrediction | null>(null);
   const [officialGroupChampions, setOfficialGroupChampions] = useState<Record<string, string>>({});
@@ -69,7 +69,7 @@ const MyPredictions: React.FC = () => {
   }, [view]);
 
   useEffect(() => {
-    setSelectedSlotIndex(null);
+    setSelectedSlotIndex(0);
   }, [matchSlots]);
 
   const fetchPredictions = async (page: number) => {
@@ -291,25 +291,15 @@ const MyPredictions: React.FC = () => {
                 </div>
               </div>
 
-              {selectedSlotIndex === null ? (
-                <div className={`${cardPad} py-10 text-center`}>
-                  <p className="text-sm font-medium text-slate-600">
-                    Tap a match above to view rankings
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <p className="mb-3 text-xs text-slate-500">
-                    {matchSlots[selectedSlotIndex].match.matchTime
-                      ? format(
-                          new Date(matchSlots[selectedSlotIndex].match.matchTime),
-                          'MMM dd, yyyy · HH:mm'
-                        )
-                      : null}
-                  </p>
-                  {renderEarnersList(matchSlots[selectedSlotIndex].earners)}
-                </>
-              )}
+              <p className="mb-3 text-xs text-slate-500">
+                {matchSlots[selectedSlotIndex].match.matchTime
+                  ? format(
+                      new Date(matchSlots[selectedSlotIndex].match.matchTime),
+                      'MMM dd, yyyy · HH:mm'
+                    )
+                  : null}
+              </p>
+              {renderEarnersList(matchSlots[selectedSlotIndex].earners)}
             </>
           )
         ) : loading && !tournamentPrediction ? (
