@@ -16,6 +16,8 @@
     "seed:export": "tsx scripts/exportSeedFromDb.ts",
     "backfill:prediction-snapshots": "tsx scripts/backfillPredictionSnapshots.ts",
     "recalculate:points": "tsx scripts/recalculateUserTotalPoints.ts",
+    "fix:decimal-goal-scores": "tsx scripts/fixDecimalGoalScores.ts",
+    "sync:user-total-points": "tsx scripts/syncUserTotalPoints.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {

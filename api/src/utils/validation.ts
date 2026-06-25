@@ -37,10 +37,16 @@ export const schemas = {
 
   prediction: Joi.object({
     matchId: Joi.string().required(),
-    team1Score: Joi.number().min(0).required(),
-    team2Score: Joi.number().min(0).required(),
+    team1Score: Joi.number().integer().min(0).max(20).required(),
+    team2Score: Joi.number().integer().min(0).max(20).required(),
     comment: Joi.string().allow('', null).optional(),
     penaltyWinner: Joi.string().trim().allow('', null).optional(),
+  }),
+
+  predictionUpdate: Joi.object({
+    team1Score: Joi.number().integer().min(0).max(20).optional(),
+    team2Score: Joi.number().integer().min(0).max(20).optional(),
+    comment: Joi.string().allow('', null).optional(),
   }),
 
   tournamentPrediction: Joi.object({

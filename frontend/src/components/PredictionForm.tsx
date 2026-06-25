@@ -2,6 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Match, Prediction } from '../types';
 import { apiService } from '../services/apiService';
 import { needsPenaltyWinner } from '../utils/knockout';
+import {
+  GOAL_SCORE_MAX,
+  GoalScoreInput,
+  isValidGoalScore,
+  normalizeGoalScore,
+  parseGoalScoreInput,
+} from '../utils/goalScore';
 import PenaltyShootoutPicker from './PenaltyShootoutPicker';
 import { alertError, btnOutline, btnPrimary, cardPad, input, label } from '../theme';
 
@@ -23,8 +30,12 @@ const PredictionForm: React.FC<PredictionFormProps> = ({
   onSuccess,
   onClose,
 }) => {
-  const [team1Score, setTeam1Score] = useState(initialPrediction?.team1Score ?? 0);
-  const [team2Score, setTeam2Score] = useState(initialPrediction?.team2Score ?? 0);
+  const [team1Score, setTeam1Score] = useState<GoalScoreInput>(
+    initialPrediction ? normalizeGoalScore(initialPrediction.team1Score) : ''
+  );
+  const [team2Score, setTeam2Score] = useState<GoalScoreInput>(
+    initialPrediction ? normalizeGoalScore(initialPrediction.team2Score) : ''
+  );
   const [penaltyWinner, setPenaltyWinner] = useState<string | null>(
     initialPrediction?.penaltyWinner ?? null
   );
@@ -32,21 +43,21 @@ const PredictionForm: React.FC<PredictionFormProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const showPenaltyPicker = useMemo(
-    () => needsPenaltyWinner(match, team1Score, team2Score),
-    [match, team1Score, team2Score]
-  );
+  const showPenaltyPicker = useMemo(() => {
+    if (!isValidGoalScore(team1Score) || !isValidGoalScore(team2Score)) return false;
+    return needsPenaltyWinner(match, team1Score, team2Score);
+  }, [match, team1Score, team2Score]);
 
   useEffect(() => {
     if (!showPenaltyPicker) setPenaltyWinner(null);
   }, [showPenaltyPicker]);
 
+  const scoresValid = isValidGoalScore(team1Score) && isValidGoalScore(team2Score);
+  const canSubmit = scoresValid && (!showPenaltyPicker || Boolean(penaltyWinner));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (showPenaltyPicker && !penaltyWinner) {
-      setError('Pick who wins the penalty shootout');
-      return;
-    }
+    if (!canSubmit) return;
     setError('');
     setLoading(true);
 
@@ -89,26 +100,30 @@ const PredictionForm: React.FC<PredictionFormProps> = ({
         <div>
           <label className={label}>{match.team1} Score</label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             min="0"
-            max="20"
+            max={GOAL_SCORE_MAX}
             value={team1Score}
-            onChange={(e) => setTeam1Score(Number(e.target.value))}
+            onChange={(e) => setTeam1Score(parseGoalScoreInput(e.target.value))}
             className={input}
-            required
+            autoComplete="off"
           />
         </div>
 
         <div>
           <label className={label}>{match.team2} Score</label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             min="0"
-            max="20"
+            max={GOAL_SCORE_MAX}
             value={team2Score}
-            onChange={(e) => setTeam2Score(Number(e.target.value))}
+            onChange={(e) => setTeam2Score(parseGoalScoreInput(e.target.value))}
             className={input}
-            required
+            autoComplete="off"
           />
         </div>
 
@@ -142,7 +157,7 @@ const PredictionForm: React.FC<PredictionFormProps> = ({
         </div>
 
         <div className="flex flex-col gap-2">
-          <button type="submit" disabled={loading} className={btnPrimary}>
+          <button type="submit" disabled={loading || !canSubmit} className={btnPrimary}>
             {loading ? 'Submitting...' : initialPrediction ? 'Update prediction' : 'Submit prediction'}
           </button>
           {onClose && (

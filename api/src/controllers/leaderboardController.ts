@@ -61,6 +61,7 @@ export const getTopLeaderboard = async (req: AuthRequest, res: Response) => {
       listUsersByTotalPoints(limitNum),
       computeRankTrendAfterLastGame(),
     ]);
+    res.set('Cache-Control', 'no-store');
     res.json({
       leaderboard: buildLeaderboardEntries(users, rankTrendByUserId),
       source: 'mongodb',

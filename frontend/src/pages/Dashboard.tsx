@@ -191,7 +191,12 @@ const Dashboard: React.FC = () => {
     setLoading(false);
   };
 
-  const handlePredictionSubmit = (matchId: string, team1Score: number, team2Score: number) => {
+  const handlePredictionSubmit = (
+    matchId: string,
+    team1Score: number,
+    team2Score: number,
+    penaltyWinner?: string | null
+  ) => {
     const submittedTime = new Date().toISOString();
 
     setUserPredictions((prev) => {
@@ -204,6 +209,7 @@ const Dashboard: React.FC = () => {
           team1Score,
           team2Score,
           submittedTime,
+          penaltyWinner: penaltyWinner ?? next[existingIndex].penaltyWinner ?? null,
         };
         return next;
       }
@@ -217,6 +223,7 @@ const Dashboard: React.FC = () => {
         team2Score,
         submittedTime,
         points: 0,
+        penaltyWinner: penaltyWinner ?? null,
       };
       return [optimisticPrediction, ...prev];
     });

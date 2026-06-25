@@ -16,9 +16,10 @@ import { canRevealLivePredictions } from '../utils/matchStatus';
 import {
   enrichMatchWithTeams,
   isPickableNationTeamId,
-  sumUserTotalPoints,
+  computeUserTotalPoints,
   teamMapFromDocs,
 } from './helpers';
+import { normalizeGoalScore } from '../utils/goalScore';
 
 // ── Users (`users` collection) ───────────────────────────────────────────────
 
@@ -83,7 +84,7 @@ export async function updateUserById(
 export async function recalculateUserTotalPoints(userId: string): Promise<number> {
   const user = await findUserById(userId);
   if (!user) return 0;
-  const totalPoints = sumUserTotalPoints(user);
+  const totalPoints = computeUserTotalPoints(user);
   await updateUserById(userId, { totalPoints });
   return totalPoints;
 }
@@ -91,15 +92,13 @@ export async function recalculateUserTotalPoints(userId: string): Promise<number
 export async function recalculateAllUserTotalPoints(): Promise<number> {
   const users = await getUsersCollection().find({}).toArray();
   let updated = 0;
-
   for (const user of users) {
-    const totalPoints = sumUserTotalPoints(user);
-    if ((user.totalPoints ?? 0) !== totalPoints) {
+    const totalPoints = computeUserTotalPoints(user);
+    if (totalPoints !== (user.totalPoints ?? 0)) {
       await updateUserById(user._id.toString(), { totalPoints });
-      updated++;
+      updated += 1;
     }
   }
-
   return updated;
 }
 
@@ -114,8 +113,8 @@ export async function upsertUserPrediction(
   const entry: EmbeddedPrediction = {
     matchId,
     matchTag: prediction.matchTag,
-    team1Score: prediction.team1Score,
-    team2Score: prediction.team2Score,
+    team1Score: normalizeGoalScore(prediction.team1Score),
+    team2Score: normalizeGoalScore(prediction.team2Score),
     points: prediction.points ?? 0,
     comment: prediction.comment ?? null,
     submittedTime: prediction.submittedTime ?? new Date(),
@@ -132,7 +131,10 @@ export async function upsertUserPrediction(
 
   await updateUserById(userId, {
     predictions,
-    totalPoints: sumUserTotalPoints({ predictions, tournamentPrediction: user.tournamentPrediction }),
+    totalPoints: computeUserTotalPoints({
+      predictions,
+      tournamentPrediction: user.tournamentPrediction,
+    }),
   });
   return predictions.find((p) => p.matchId === matchId) ?? null;
 }
@@ -149,7 +151,10 @@ export async function updatePredictionPointsForMatch(
   );
   await updateUserById(userId, {
     predictions,
-    totalPoints: sumUserTotalPoints({ predictions, tournamentPrediction: user.tournamentPrediction }),
+    totalPoints: computeUserTotalPoints({
+      predictions,
+      tournamentPrediction: user.tournamentPrediction,
+    }),
   });
 }
 
@@ -163,6 +168,18 @@ export async function findLatestCompletedMatch(): Promise<MatchDocument | null> 
     .sort({ updatedAt: -1, matchTime: -1 })
     .limit(1)
     .next();
+}
+
+/** All completed matches from the most recent kickoff slot (same matchTime). */
+export async function findLatestCompletedMatchSlot(): Promise<MatchDocument[]> {
+  const latest = await findLatestCompletedMatch();
+  if (!latest) return [];
+  if (!latest.matchTime) return [latest];
+
+  return getMatchesCollection()
+    .find({ status: 'completed', matchTime: latest.matchTime })
+    .sort({ sequence: 1, matchTag: 1 })
+    .toArray();
 }
 
 export async function getEarliestMatchKickoff(): Promise<Date | null> {
@@ -231,7 +248,7 @@ export async function upsertTournamentPrediction(
 
   await updateUserById(userId, {
     tournamentPrediction: entry,
-    totalPoints: sumUserTotalPoints({ predictions: user.predictions, tournamentPrediction: entry }),
+    totalPoints: computeUserTotalPoints({ predictions: user.predictions, tournamentPrediction: entry }),
   });
   return entry;
 }
@@ -263,6 +280,121 @@ export async function listGroupStageGroups(): Promise<GroupStageGroup[]> {
       group,
       teamIds: [...teamIds].sort(),
     }));
+}
+
+export interface CommunityTournamentPickRow {
+  userId: string;
+  name: string;
+  champion: string;
+  finalists: [string, string];
+  semifinalists: [string, string, string, string];
+  groupChampions?: GroupChampionsPicks;
+  points: number;
+  submittedTime: Date;
+}
+
+export interface CommunityTeamCount {
+  teamId: string;
+  count: number;
+  pct?: number;
+}
+
+export interface CommunityTournamentConsensus {
+  champion: CommunityTeamCount[];
+  groupChampions: Record<string, CommunityTeamCount[]>;
+  semifinalists: CommunityTeamCount[];
+  finalists: CommunityTeamCount[];
+}
+
+function incrementCount(map: Map<string, number>, teamId: string): void {
+  const id = teamId.trim().toUpperCase();
+  if (!id) return;
+  map.set(id, (map.get(id) ?? 0) + 1);
+}
+
+function sortedCounts(map: Map<string, number>, total: number): CommunityTeamCount[] {
+  return [...map.entries()]
+    .map(([teamId, count]) => ({ teamId, count, pct: total > 0 ? Math.round((count / total) * 100) : 0 }))
+    .sort((a, b) => b.count - a.count || a.teamId.localeCompare(b.teamId));
+}
+
+export async function listCommunityTournamentPredictions(): Promise<{
+  picks: CommunityTournamentPickRow[];
+  consensus: CommunityTournamentConsensus;
+  submittedCount: number;
+}> {
+  const users = await getUsersCollection()
+    .find({
+      ...activeUserFilter,
+      tournamentPrediction: { $exists: true, $ne: null },
+    })
+    .toArray();
+
+  const picks: CommunityTournamentPickRow[] = [];
+  const championCounts = new Map<string, number>();
+  const semifinalistCounts = new Map<string, number>();
+  const finalistCounts = new Map<string, number>();
+  const groupCounts = new Map<string, Map<string, number>>();
+
+  for (const user of users) {
+    const stored = user.tournamentPrediction;
+    if (!stored?.champion) continue;
+
+    picks.push({
+      userId: user._id.toString(),
+      name: leaderboardDisplayName(user),
+      champion: stored.champion,
+      finalists: stored.finalists,
+      semifinalists: stored.semifinalists,
+      groupChampions: stored.groupChampions,
+      points: stored.points ?? 0,
+      submittedTime: stored.submittedTime,
+    });
+
+    incrementCount(championCounts, stored.champion);
+    for (const semi of stored.semifinalists) incrementCount(semifinalistCounts, semi);
+    for (const fin of stored.finalists) incrementCount(finalistCounts, fin);
+    if (stored.groupChampions) {
+      for (const [group, teamId] of Object.entries(stored.groupChampions)) {
+        const g = group.trim().toUpperCase();
+        if (!g) continue;
+        if (!groupCounts.has(g)) groupCounts.set(g, new Map());
+        incrementCount(groupCounts.get(g)!, teamId);
+      }
+    }
+  }
+
+  const submittedCount = picks.length;
+
+  picks.sort((a, b) => {
+    const pointsDiff = b.points - a.points;
+    if (pointsDiff !== 0) return pointsDiff;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+
+  const groupChampionsConsensus: Record<string, CommunityTeamCount[]> = {};
+  for (const [group, counts] of groupCounts.entries()) {
+    groupChampionsConsensus[group] = sortedCounts(counts, submittedCount).map(
+      ({ teamId, count }) => ({ teamId, count })
+    );
+  }
+
+  return {
+    picks,
+    submittedCount,
+    consensus: {
+      champion: sortedCounts(championCounts, submittedCount),
+      groupChampions: groupChampionsConsensus,
+      semifinalists: sortedCounts(semifinalistCounts, submittedCount).map(({ teamId, count }) => ({
+        teamId,
+        count,
+      })),
+      finalists: sortedCounts(finalistCounts, submittedCount).map(({ teamId, count }) => ({
+        teamId,
+        count,
+      })),
+    },
+  };
 }
 
 /** Active users; legacy docs without `isActive` are included. */
@@ -443,7 +575,6 @@ export async function applyPredictionSnapshotsAtMilestone(
     const predictions = [...user.predictions];
     const cumulativeTotalPoints = totalByUserId.get(userId) ?? 0;
     const overallRank = rankByUserId.get(userId) ?? null;
-    const tournamentPts = user.tournamentPrediction?.points ?? 0;
 
     predictions[idx] = {
       ...predictions[idx],
@@ -453,7 +584,10 @@ export async function applyPredictionSnapshotsAtMilestone(
 
     await updateUserById(userId, {
       predictions,
-      totalPoints: cumulativeTotalPoints + tournamentPts,
+      totalPoints: computeUserTotalPoints({
+        predictions,
+        tournamentPrediction: user.tournamentPrediction,
+      }),
     });
     updated += 1;
   }
@@ -815,6 +949,7 @@ export async function attachMatchToPredictions(
       points: p.points,
       comment: p.comment,
       submittedTime: p.submittedTime,
+      penaltyWinner: p.penaltyWinner ?? null,
       cumulativeTotalPoints: p.cumulativeTotalPoints,
       overallRank: p.overallRank,
     };

@@ -111,6 +111,11 @@ export interface MatchEarnerEntry {
   team2Score: number;
 }
 
+export interface MatchSlotEarners {
+  match: Match;
+  earners: MatchEarnerEntry[];
+}
+
 export interface LiveMatchPredictionEntry {
   userId: string;
   name: string;
@@ -124,6 +129,47 @@ export interface LiveMatchPredictionEntry {
 export interface LiveMatchPredictionsGroup {
   match: Match;
   predictions: LiveMatchPredictionEntry[];
+}
+
+export interface CommunityTeamCount {
+  teamId: string;
+  teamName: string;
+  countryLogo?: string | null;
+  count: number;
+  pct?: number;
+}
+
+export interface CommunityTournamentConsensus {
+  champion: CommunityTeamCount[];
+  groupChampions: Record<string, CommunityTeamCount[]>;
+  semifinalists: CommunityTeamCount[];
+  finalists: CommunityTeamCount[];
+}
+
+export interface CommunityTournamentPick {
+  userId: string;
+  name: string;
+  champion: TournamentTeamPick;
+  finalists: TournamentTeamPick[];
+  semifinalists: TournamentTeamPick[];
+  groupChampions?: GroupChampionPick[];
+  points: number;
+  submittedTime: string;
+}
+
+export interface CommunityTournamentPredictionsResponse {
+  unlocksAt: string;
+  submittedCount: number;
+  officialGroupChampions: Record<string, string>;
+  consensus: CommunityTournamentConsensus;
+  picks: CommunityTournamentPick[];
+}
+
+export interface CommunityTournamentLockedResponse {
+  error: string;
+  unlocksAt: string;
+  submittedCount: number;
+  officialGroupChampions: Record<string, string>;
 }
 
 export interface AuthState {

@@ -6,6 +6,8 @@ import * as tournamentPredictionController from '../controllers/tournamentPredic
 const router = Router();
 
 router.get('/', authMiddleware, tournamentPredictionController.getTournamentPrediction);
+router.get('/community', authMiddleware, tournamentPredictionController.getCommunityTournamentPredictions);
+router.get('/user/:userId', authMiddleware, tournamentPredictionController.getUserTournamentPrediction);
 router.post(
   '/',
   authMiddleware,

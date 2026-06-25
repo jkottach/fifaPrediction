@@ -144,7 +144,7 @@ export function sumPredictionPoints(predictions: { points?: number }[]): number 
   return predictions.reduce((sum, p) => sum + (p.points ?? 0), 0);
 }
 
-export function sumUserTotalPoints(user: {
+export function computeUserTotalPoints(user: {
   predictions: { points?: number }[];
   tournamentPrediction?: { points?: number } | null;
 }): number {
