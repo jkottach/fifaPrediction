@@ -5,7 +5,7 @@ import { buildMatchTag, formatMatchForApi } from '../db/helpers';
 import {
   createMatch as insertMatch,
   deleteMatchById,
-  findLatestCompletedMatch,
+  findLatestCompletedMatchSlot,
   findMatchById,
   getEnrichedMatch,
   getEnrichedMatches,
@@ -94,15 +94,20 @@ export const getLatestCompletedMatchTopEarners = async (req: AuthRequest, res: R
     const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
     const limitNum = Math.min(100, Math.max(1, parseInt(String(rawLimit ?? '50'), 10) || 50));
 
-    const latest = await findLatestCompletedMatch();
-    if (!latest) {
-      return res.json({ match: null, earners: [] });
+    const slotMatches = await findLatestCompletedMatchSlot();
+    if (slotMatches.length === 0) {
+      return res.json({ matchSlots: [] });
     }
 
-    const match = await getEnrichedMatch(latest);
-    const earners = await listTopEarnersForMatch(latest._id.toString(), limitNum);
+    const matchSlots = await Promise.all(
+      slotMatches.map(async (doc) => {
+        const match = await getEnrichedMatch(doc);
+        const earners = await listTopEarnersForMatch(doc._id.toString(), limitNum);
+        return { match, earners };
+      })
+    );
 
-    res.json({ match, earners });
+    res.json({ matchSlots });
   } catch (error) {
     const errorDetails = logger.error('getLatestCompletedMatchTopEarners', error, {
       method: req.method,

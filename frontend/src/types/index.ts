@@ -111,6 +111,11 @@ export interface MatchEarnerEntry {
   team2Score: number;
 }
 
+export interface MatchSlotEarners {
+  match: Match;
+  earners: MatchEarnerEntry[];
+}
+
 export interface LiveMatchPredictionEntry {
   userId: string;
   name: string;

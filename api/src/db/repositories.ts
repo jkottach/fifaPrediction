@@ -171,6 +171,18 @@ export async function findLatestCompletedMatch(): Promise<MatchDocument | null> 
     .next();
 }
 
+/** All completed matches from the most recent kickoff slot (same matchTime). */
+export async function findLatestCompletedMatchSlot(): Promise<MatchDocument[]> {
+  const latest = await findLatestCompletedMatch();
+  if (!latest) return [];
+  if (!latest.matchTime) return [latest];
+
+  return getMatchesCollection()
+    .find({ status: 'completed', matchTime: latest.matchTime })
+    .sort({ sequence: 1, matchTag: 1 })
+    .toArray();
+}
+
 export async function getEarliestMatchKickoff(): Promise<Date | null> {
   const match = await getMatchesCollection()
     .find({ status: { $in: ['scheduled', 'ongoing'] } })
