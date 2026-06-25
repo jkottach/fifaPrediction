@@ -33,6 +33,7 @@ const MyPredictions: React.FC = () => {
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [editingPrediction, setEditingPrediction] = useState<Prediction | null>(null);
   const [matchSlots, setMatchSlots] = useState<MatchSlotEarners[]>([]);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
   const [topEarnersLoading, setTopEarnersLoading] = useState(false);
   const [tournamentPrediction, setTournamentPrediction] = useState<TournamentPrediction | null>(null);
   const [officialGroupChampions, setOfficialGroupChampions] = useState<Record<string, string>>({});
@@ -66,6 +67,10 @@ const MyPredictions: React.FC = () => {
       fetchLatestTopEarners();
     }
   }, [view]);
+
+  useEffect(() => {
+    setSelectedSlotIndex(null);
+  }, [matchSlots]);
 
   const fetchPredictions = async (page: number) => {
     try {
@@ -158,26 +163,39 @@ const MyPredictions: React.FC = () => {
       </div>
     );
 
-  const renderMatchSlotHeader = (match: Match, compact?: boolean) => (
-    <div className={compact ? '' : undefined}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-        {match.matchTag || 'Latest completed match'}
-      </p>
-      <h2
-        className={`mt-1 font-display font-bold text-slate-900 ${
-          compact ? 'text-base' : 'text-lg'
+  const matchSlotKey = (slot: MatchSlotEarners, index: number) =>
+    slot.match._id ?? slot.match.matchId ?? slot.match.matchTag ?? String(index);
+
+  const renderMatchSlotTile = (slot: MatchSlotEarners, index: number, isSelected: boolean) => {
+    const match = slot.match;
+    return (
+      <button
+        key={matchSlotKey(slot, index)}
+        type="button"
+        onClick={() => setSelectedSlotIndex(index)}
+        aria-pressed={isSelected}
+        className={`p-4 text-left transition ${
+          isSelected
+            ? 'bg-slate-900 text-white'
+            : 'bg-white text-slate-900 hover:bg-slate-50'
         }`}
       >
-        {matchTeamName(match, 1)} vs {matchTeamName(match, 2)}
-      </h2>
-      <p className="mt-1 text-xs text-slate-500">
-        Final: {match.team1Score} – {match.team2Score}
-        {match.matchTime
-          ? ` · ${format(new Date(match.matchTime), 'MMM dd, yyyy · HH:mm')}`
-          : ''}
-      </p>
-    </div>
-  );
+        <p
+          className={`text-[10px] font-semibold uppercase tracking-wider ${
+            isSelected ? 'text-white/60' : 'text-slate-400'
+          }`}
+        >
+          {match.matchTag || 'Match'}
+        </p>
+        <h2 className="mt-1 font-display text-sm font-bold leading-snug sm:text-base">
+          {matchTeamName(match, 1)} vs {matchTeamName(match, 2)}
+        </h2>
+        <p className={`mt-1 text-xs ${isSelected ? 'text-white/70' : 'text-slate-500'}`}>
+          Final: {match.team1Score} – {match.team2Score}
+        </p>
+      </button>
+    );
+  };
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -247,32 +265,51 @@ const MyPredictions: React.FC = () => {
             </div>
           ) : matchSlots.length === 1 ? (
             <>
-              <div className={`${cardPad} mb-4`}>{renderMatchSlotHeader(matchSlots[0].match)}</div>
+              <div className={`${cardPad} mb-4`}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  {matchSlots[0].match.matchTag || 'Latest completed match'}
+                </p>
+                <h2 className="mt-1 font-display text-lg font-bold text-slate-900">
+                  {matchTeamName(matchSlots[0].match, 1)} vs {matchTeamName(matchSlots[0].match, 2)}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Final: {matchSlots[0].match.team1Score} – {matchSlots[0].match.team2Score}
+                  {matchSlots[0].match.matchTime
+                    ? ` · ${format(new Date(matchSlots[0].match.matchTime), 'MMM dd, yyyy · HH:mm')}`
+                    : ''}
+                </p>
+              </div>
               {renderEarnersList(matchSlots[0].earners)}
             </>
           ) : (
             <>
-              <div className={`${cardPad} mb-4 grid grid-cols-1 sm:grid-cols-2 sm:gap-4`}>
-                {matchSlots.map((slot, index) => (
-                  <div
-                    key={slot.match._id ?? slot.match.matchTag ?? index}
-                    className={index > 0 ? 'border-t border-slate-100 pt-4 sm:border-t-0 sm:border-l sm:pl-4 sm:pt-0' : 'sm:pr-4'}
-                  >
-                    {renderMatchSlotHeader(slot.match, true)}
-                  </div>
-                ))}
+              <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="grid grid-cols-2 divide-x divide-slate-100">
+                  {matchSlots.map((slot, index) =>
+                    renderMatchSlotTile(slot, index, selectedSlotIndex === index)
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-6">
-                {matchSlots.map((slot, index) => (
-                  <section key={slot.match._id ?? slot.match.matchTag ?? index}>
-                    <h3 className="mb-3 font-display text-sm font-bold text-slate-700">
-                      {matchTeamName(slot.match, 1)} vs {matchTeamName(slot.match, 2)}
-                    </h3>
-                    {renderEarnersList(slot.earners)}
-                  </section>
-                ))}
-              </div>
+              {selectedSlotIndex === null ? (
+                <div className={`${cardPad} py-10 text-center`}>
+                  <p className="text-sm font-medium text-slate-600">
+                    Tap a match above to view rankings
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="mb-3 text-xs text-slate-500">
+                    {matchSlots[selectedSlotIndex].match.matchTime
+                      ? format(
+                          new Date(matchSlots[selectedSlotIndex].match.matchTime),
+                          'MMM dd, yyyy · HH:mm'
+                        )
+                      : null}
+                  </p>
+                  {renderEarnersList(matchSlots[selectedSlotIndex].earners)}
+                </>
+              )}
             </>
           )
         ) : loading && !tournamentPrediction ? (
