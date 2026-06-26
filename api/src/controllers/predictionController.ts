@@ -13,6 +13,24 @@ import { formatUserId, computeUserTotalPoints } from '../db/helpers';
 import { isKnockoutMatch } from '../utils/knockout';
 import { normalizeGoalScore } from '../utils/goalScore';
 
+type PopulatedPrediction = Awaited<ReturnType<typeof attachMatchToPredictions>>[number];
+type MatchScheduleRef = { matchTime?: string | Date; sequence?: number };
+
+function comparePredictionsBySchedule(
+  a: PopulatedPrediction,
+  b: PopulatedPrediction,
+  direction: 'asc' | 'desc' = 'asc'
+): number {
+  const matchA = a.matchId as MatchScheduleRef | null;
+  const matchB = b.matchId as MatchScheduleRef | null;
+  const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
+  const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
+  if (timeA !== timeB) return direction === 'asc' ? timeA - timeB : timeB - timeA;
+  const seqA = matchA?.sequence ?? 0;
+  const seqB = matchB?.sequence ?? 0;
+  return direction === 'asc' ? seqA - seqB : seqB - seqA;
+}
+
 export const submitPrediction = async (req: AuthRequest, res: Response) => {
   try {
     const { matchId, team1Score, team2Score, comment, penaltyWinner } = req.body;
@@ -194,26 +212,16 @@ async function buildPredictionsFromResults(
     return match?.status === 'completed';
   });
 
-  completedPredictions.sort((a, b) => {
-    const matchA = a.matchId as { matchTime?: string | Date } | null;
-    const matchB = b.matchId as { matchTime?: string | Date } | null;
-    const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
-    const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
-    return timeB - timeA;
-  });
+  completedPredictions.sort((a, b) => comparePredictionsBySchedule(a, b, 'desc'));
 
   const pageNum = parseInt(String(page), 10);
   const limitNum = parseInt(String(limit), 10);
   const total = completedPredictions.length;
   const slice = completedPredictions.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
-  const chronoSorted = [...completedPredictions].sort((a, b) => {
-    const matchA = a.matchId as { matchTime?: string | Date } | null;
-    const matchB = b.matchId as { matchTime?: string | Date } | null;
-    const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
-    const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
-    return timeA - timeB;
-  });
+  const chronoSorted = [...completedPredictions].sort((a, b) =>
+    comparePredictionsBySchedule(a, b, 'asc')
+  );
 
   let runningTotal = 0;
   const cumulativeFallbackById = new Map<string, number>();
@@ -254,7 +262,7 @@ async function buildPredictionsFromResults(
 
     return {
       ...prediction,
-      totalPoints: storedTotal ?? cumulativeFallbackById.get(predictionId) ?? 0,
+      totalPoints: cumulativeFallbackById.get(predictionId) ?? storedTotal ?? 0,
       overallRank,
       previousOverallRank: previousRankByPredictionId.get(predictionId) ?? null,
     };
