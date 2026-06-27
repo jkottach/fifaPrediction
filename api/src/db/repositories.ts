@@ -616,6 +616,7 @@ export async function backfillAllPredictionSnapshots(): Promise<{
 }
 
 export async function applySnapshotsAfterMatchFinalized(matchId: string): Promise<void> {
+  rankTrendCache = null;
   const completedMatches = await getMatchesCollection()
     .find({ status: 'completed' })
     .sort({ matchTime: 1, sequence: 1 })
@@ -631,26 +632,47 @@ export async function computeOverallRankByPredictionId(
   const completedMatches = await getMatchesCollection()
     .find({ status: 'completed' })
     .sort({ matchTime: 1, sequence: 1 })
+    .project({ _id: 1 })
     .toArray();
 
-  const allUsers = await getUsersCollection().find(activeUserFilter).toArray();
-  const completedMatchIds = new Set<string>();
+  if (completedMatches.length === 0) return new Map();
+
+  const users = await getUsersCollection()
+    .find(activeUserFilter)
+    .project({ predictions: 1 })
+    .toArray();
+
+  const pointsByUser = new Map<string, Map<string, number>>();
+  const runningTotals = new Map<string, number>();
+  let targetMatchIds: Set<string> | null = null;
+
+  for (const user of users) {
+    const uid = user._id.toString();
+    const byMatch = new Map<string, number>();
+    for (const prediction of user.predictions) {
+      byMatch.set(prediction.matchId, prediction.points ?? 0);
+    }
+    pointsByUser.set(uid, byMatch);
+    runningTotals.set(uid, 0);
+    if (uid === userId) {
+      targetMatchIds = new Set(user.predictions.map((prediction) => prediction.matchId));
+    }
+  }
+
+  if (!targetMatchIds || targetMatchIds.size === 0) return new Map();
+
   const rankByPredictionId = new Map<string, number | null>();
 
   for (const match of completedMatches) {
     const matchId = match._id.toString();
-    completedMatchIds.add(matchId);
+    for (const [uid, byMatch] of pointsByUser) {
+      runningTotals.set(uid, (runningTotals.get(uid) ?? 0) + (byMatch.get(matchId) ?? 0));
+    }
 
-    const totals = allUsers.map((user) => ({
-      userId: user._id.toString(),
-      total: user.predictions
-        .filter((p) => completedMatchIds.has(p.matchId))
-        .reduce((sum, p) => sum + (p.points ?? 0), 0),
-    }));
-
-    const rankByUserId = denseOverallRankFromTotals(totals);
-    const user = allUsers.find((u) => u._id.toString() === userId);
-    if (user?.predictions.some((p) => p.matchId === matchId)) {
+    if (targetMatchIds.has(matchId)) {
+      const rankByUserId = denseOverallRankFromTotals(
+        [...runningTotals.entries()].map(([id, total]) => ({ userId: id, total }))
+      );
       rankByPredictionId.set(`${userId}_${matchId}`, rankByUserId.get(userId) ?? null);
     }
   }
@@ -661,9 +683,16 @@ export async function computeOverallRankByPredictionId(
 export async function listUsersByTotalPoints(limit: number): Promise<UserDocument[]> {
   return getUsersCollection()
     .find(activeUserFilter)
+    .project({
+      firstName: 1,
+      lastName: 1,
+      email: 1,
+      state: 1,
+      totalPoints: 1,
+    })
     .sort({ totalPoints: -1, firstName: 1, lastName: 1, email: 1 })
     .limit(limit)
-    .toArray();
+    .toArray() as Promise<UserDocument[]>;
 }
 
 export async function listCompletedMatchIdsInOrder(): Promise<string[]> {
@@ -678,14 +707,19 @@ export async function listCompletedMatchIdsInOrder(): Promise<string[]> {
 export async function computeMatchOnlyRanksAtMilestone(
   completedMatchIds: string[]
 ): Promise<Map<string, number | null>> {
-  const allUsers = await getUsersCollection().find(activeUserFilter).toArray();
   const completedSet = new Set(completedMatchIds);
-  const totals = allUsers.map((user) => ({
+  const users = await getUsersCollection()
+    .find(activeUserFilter)
+    .project({ predictions: 1 })
+    .toArray();
+
+  const totals = users.map((user) => ({
     userId: user._id.toString(),
     total: user.predictions
-      .filter((p) => completedSet.has(p.matchId))
-      .reduce((sum, p) => sum + (p.points ?? 0), 0),
+      .filter((prediction) => completedSet.has(prediction.matchId))
+      .reduce((sum, prediction) => sum + (prediction.points ?? 0), 0),
   }));
+
   return denseOverallRankFromTotals(totals);
 }
 
@@ -701,24 +735,77 @@ export function rankTrendFromRanks(
   return 'unchanged';
 }
 
-export async function computeRankTrendAfterLastGame(): Promise<Map<string, RankTrend | null>> {
-  const completedMatchIds = await listCompletedMatchIdsInOrder();
+let rankTrendCache: {
+  lastMatchId: string;
+  trends: Map<string, RankTrend | null>;
+  at: number;
+} | null = null;
+
+const RANK_TREND_CACHE_MS = 30_000;
+
+function computeRankTrendsForMatchSets(
+  beforeMatchIds: Set<string>,
+  afterMatchIds: Set<string>,
+  users: Array<Pick<UserDocument, '_id' | 'predictions'>>
+): Map<string, RankTrend | null> {
+  const totalsBefore: Array<{ userId: string; total: number }> = [];
+  const totalsAfter: Array<{ userId: string; total: number }> = [];
+
+  for (const user of users) {
+    const userId = user._id.toString();
+    let before = 0;
+    let after = 0;
+    for (const prediction of user.predictions) {
+      const matchId = prediction.matchId;
+      const points = prediction.points ?? 0;
+      if (beforeMatchIds.has(matchId)) before += points;
+      if (afterMatchIds.has(matchId)) after += points;
+    }
+    totalsBefore.push({ userId, total: before });
+    totalsAfter.push({ userId, total: after });
+  }
+
+  const ranksBefore = denseOverallRankFromTotals(totalsBefore);
+  const ranksAfter = denseOverallRankFromTotals(totalsAfter);
   const trends = new Map<string, RankTrend | null>();
-  if (completedMatchIds.length < 2) return trends;
 
-  const [ranksBeforeLastGame, ranksAfterLastGame] = await Promise.all([
-    computeMatchOnlyRanksAtMilestone(completedMatchIds.slice(0, -1)),
-    computeMatchOnlyRanksAtMilestone(completedMatchIds),
-  ]);
-
-  const userIds = new Set([...ranksBeforeLastGame.keys(), ...ranksAfterLastGame.keys()]);
+  const userIds = new Set([...ranksBefore.keys(), ...ranksAfter.keys()]);
   for (const userId of userIds) {
     trends.set(
       userId,
-      rankTrendFromRanks(ranksAfterLastGame.get(userId), ranksBeforeLastGame.get(userId))
+      rankTrendFromRanks(ranksAfter.get(userId), ranksBefore.get(userId))
     );
   }
 
+  return trends;
+}
+
+export async function computeRankTrendAfterLastGame(): Promise<Map<string, RankTrend | null>> {
+  const completedMatchIds = await listCompletedMatchIdsInOrder();
+  if (completedMatchIds.length < 2) return new Map();
+
+  const lastMatchId = completedMatchIds[completedMatchIds.length - 1];
+  const now = Date.now();
+  if (
+    rankTrendCache &&
+    rankTrendCache.lastMatchId === lastMatchId &&
+    now - rankTrendCache.at < RANK_TREND_CACHE_MS
+  ) {
+    return rankTrendCache.trends;
+  }
+
+  const users = (await getUsersCollection()
+    .find(activeUserFilter)
+    .project({ predictions: 1 })
+    .toArray()) as Array<Pick<UserDocument, '_id' | 'predictions'>>;
+
+  const trends = computeRankTrendsForMatchSets(
+    new Set(completedMatchIds.slice(0, -1)),
+    new Set(completedMatchIds),
+    users
+  );
+
+  rankTrendCache = { lastMatchId, trends, at: now };
   return trends;
 }
 

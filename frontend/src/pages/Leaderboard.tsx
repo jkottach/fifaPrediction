@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/apiService';
 import { LeaderboardEntry, Prediction } from '../types';
 import Leaderboard from '../components/Leaderboard';
@@ -9,9 +9,34 @@ import { spinner } from '../theme';
 const LEADERBOARD_LIMIT = 50;
 const PREDICTIONS_PAGE_SIZE = 10;
 
+let cachedLeaderboard: LeaderboardEntry[] | null = null;
+let leaderboardRequest: Promise<LeaderboardEntry[]> | null = null;
+
+function fetchLeaderboardOnce(): Promise<LeaderboardEntry[]> {
+  if (cachedLeaderboard) return Promise.resolve(cachedLeaderboard);
+
+  if (!leaderboardRequest) {
+    leaderboardRequest = apiService
+      .getTopLeaderboard(LEADERBOARD_LIMIT)
+      .then((res) => {
+        const entries = res.data.leaderboard || [];
+        cachedLeaderboard = entries;
+        return entries;
+      })
+      .catch((error) => {
+        leaderboardRequest = null;
+        throw error;
+      });
+  }
+
+  return leaderboardRequest;
+}
+
 const LeaderboardPage: React.FC = () => {
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(
+    () => cachedLeaderboard ?? []
+  );
+  const [loading, setLoading] = useState(() => cachedLeaderboard === null);
   const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
   const [sheetLoading, setSheetLoading] = useState(false);
   const [sheetLoadingMore, setSheetLoadingMore] = useState(false);
@@ -19,31 +44,25 @@ const LeaderboardPage: React.FC = () => {
   const [sheetPagination, setSheetPagination] = useState({ page: 1, pages: 1 });
   const [sheetError, setSheetError] = useState<string | null>(null);
 
-  const loadLeaderboard = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await apiService.getTopLeaderboard(LEADERBOARD_LIMIT);
-      setLeaderboard(res.data.leaderboard || []);
-    } catch (error) {
-      console.error('Failed to load leaderboard:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void loadLeaderboard();
-  }, [loadLeaderboard]);
+    if (cachedLeaderboard) return;
 
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        void loadLeaderboard();
-      }
+    let cancelled = false;
+    void fetchLeaderboardOnce()
+      .then((entries) => {
+        if (!cancelled) setLeaderboard(entries);
+      })
+      .catch((error) => {
+        console.error('Failed to load leaderboard:', error);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [loadLeaderboard]);
+  }, []);
 
   const fetchUserPredictions = async (userId: string, page: number, append: boolean) => {
     const res = await apiService.getUserPredictionsFromResultsByUserId(
@@ -108,7 +127,7 @@ const LeaderboardPage: React.FC = () => {
       />
 
       <div className="px-5 py-6">
-        {loading ? (
+        {loading && leaderboard.length === 0 ? (
           <div className="flex flex-col items-center py-12">
             <div className={spinner} />
             <p className="mt-4 text-sm text-slate-600">Loading...</p>
