@@ -5,6 +5,7 @@ import {
   computeRankTrendAfterLastGame,
   countDistinctPointTiersAhead,
   findUserById,
+  getLeaderboardRevision as loadLeaderboardRevision,
   listUsersByTotalPoints,
   type RankTrend,
 } from '../db/repositories';
@@ -53,17 +54,30 @@ function buildLeaderboardEntries(
   });
 }
 
+export const getLeaderboardRevision = async (_req: AuthRequest, res: Response) => {
+  try {
+    const revision = await loadLeaderboardRevision();
+    res.set('Cache-Control', 'no-store');
+    res.json(revision);
+  } catch (error) {
+    const errorDetails = logger.error('getLeaderboardRevision', error, { path: _req.path });
+    res.status(errorDetails.statusCode || 500).json({ error: 'Failed to fetch leaderboard revision' });
+  }
+};
+
 export const getTopLeaderboard = async (req: AuthRequest, res: Response) => {
   try {
     const { limit = '30' } = req.query;
     const limitNum = parseInt(limit as string, 10);
-    const [users, rankTrendByUserId] = await Promise.all([
+    const [users, rankTrendByUserId, revision] = await Promise.all([
       listUsersByTotalPoints(limitNum),
       computeRankTrendAfterLastGame(),
+      loadLeaderboardRevision(),
     ]);
     res.set('Cache-Control', 'no-store');
     res.json({
       leaderboard: buildLeaderboardEntries(users, rankTrendByUserId),
+      revision,
       source: 'mongodb',
     });
   } catch (error) {

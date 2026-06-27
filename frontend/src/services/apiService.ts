@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../context/authStore';
 import { useAzureAuth } from './swaAuth';
+import type { LeaderboardRevision } from '../types';
 
 /** SWA production uses same-origin `/api`; local dev uses Vite proxy. */
 const API_BASE_URL =
@@ -166,6 +167,10 @@ class ApiService {
 
   deletePrediction(predictionId: string) {
     return this.client.delete(`/predictions/${predictionId}`);
+  }
+
+  getLeaderboardRevision() {
+    return this.client.get<LeaderboardRevision>('/leaderboard/revision');
   }
 
   getTopLeaderboard(limit?: number) {

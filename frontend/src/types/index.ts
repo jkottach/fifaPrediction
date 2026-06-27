@@ -92,6 +92,11 @@ export interface Prediction {
   } | null;
 }
 
+export interface LeaderboardRevision {
+  lastCompletedMatchId: string | null;
+  completedMatchCount: number;
+}
+
 export interface LeaderboardEntry {
   rank: number;
   rankTrend?: 'up' | 'down' | 'unchanged' | null;

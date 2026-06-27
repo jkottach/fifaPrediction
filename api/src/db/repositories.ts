@@ -704,6 +704,17 @@ export async function listCompletedMatchIdsInOrder(): Promise<string[]> {
   return completedMatches.map((match) => match._id.toString());
 }
 
+export async function getLeaderboardRevision(): Promise<{
+  lastCompletedMatchId: string | null;
+  completedMatchCount: number;
+}> {
+  const completedMatchIds = await listCompletedMatchIdsInOrder();
+  return {
+    lastCompletedMatchId: completedMatchIds.at(-1) ?? null,
+    completedMatchCount: completedMatchIds.length,
+  };
+}
+
 export async function computeMatchOnlyRanksAtMilestone(
   completedMatchIds: string[]
 ): Promise<Map<string, number | null>> {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/apiService';
-import { LeaderboardEntry, Prediction } from '../types';
+import { LeaderboardEntry, LeaderboardRevision, Prediction } from '../types';
 import Leaderboard from '../components/Leaderboard';
 import PageHero from '../components/PageHero';
 import UserMatchPredictionsSheet from '../components/UserMatchPredictionsSheet';
@@ -8,19 +8,68 @@ import { spinner } from '../theme';
 
 const LEADERBOARD_LIMIT = 50;
 const PREDICTIONS_PAGE_SIZE = 10;
+const LEADERBOARD_CACHE_KEY = 'fifa-leaderboard';
 
-let cachedLeaderboard: LeaderboardEntry[] | null = null;
+interface LeaderboardCache {
+  revision: LeaderboardRevision;
+  entries: LeaderboardEntry[];
+}
+
+function revisionsMatch(a: LeaderboardRevision, b: LeaderboardRevision): boolean {
+  return (
+    a.lastCompletedMatchId === b.lastCompletedMatchId &&
+    a.completedMatchCount === b.completedMatchCount
+  );
+}
+
+function readLeaderboardCache(): LeaderboardCache | null {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_CACHE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as LeaderboardCache;
+    if (
+      parsed.revision &&
+      typeof parsed.revision.completedMatchCount === 'number' &&
+      Array.isArray(parsed.entries)
+    ) {
+      return parsed;
+    }
+
+    localStorage.removeItem(LEADERBOARD_CACHE_KEY);
+    return null;
+  } catch {
+    localStorage.removeItem(LEADERBOARD_CACHE_KEY);
+    return null;
+  }
+}
+
+function writeLeaderboardCache(revision: LeaderboardRevision, entries: LeaderboardEntry[]): void {
+  localStorage.setItem(
+    LEADERBOARD_CACHE_KEY,
+    JSON.stringify({ revision, entries } satisfies LeaderboardCache)
+  );
+}
+
 let leaderboardRequest: Promise<LeaderboardEntry[]> | null = null;
 
-function fetchLeaderboardOnce(): Promise<LeaderboardEntry[]> {
-  if (cachedLeaderboard) return Promise.resolve(cachedLeaderboard);
+async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+  const revisionRes = await apiService.getLeaderboardRevision();
+  const revision = revisionRes.data;
+
+  const cached = readLeaderboardCache();
+  if (cached && revisionsMatch(cached.revision, revision)) {
+    return cached.entries;
+  }
 
   if (!leaderboardRequest) {
     leaderboardRequest = apiService
       .getTopLeaderboard(LEADERBOARD_LIMIT)
       .then((res) => {
         const entries = res.data.leaderboard || [];
-        cachedLeaderboard = entries;
+        const responseRevision = res.data.revision ?? revision;
+        writeLeaderboardCache(responseRevision, entries);
+        leaderboardRequest = null;
         return entries;
       })
       .catch((error) => {
@@ -33,10 +82,11 @@ function fetchLeaderboardOnce(): Promise<LeaderboardEntry[]> {
 }
 
 const LeaderboardPage: React.FC = () => {
+  const initialCache = readLeaderboardCache();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(
-    () => cachedLeaderboard ?? []
+    () => initialCache?.entries ?? []
   );
-  const [loading, setLoading] = useState(() => cachedLeaderboard === null);
+  const [loading, setLoading] = useState(() => initialCache === null);
   const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
   const [sheetLoading, setSheetLoading] = useState(false);
   const [sheetLoadingMore, setSheetLoadingMore] = useState(false);
@@ -45,10 +95,8 @@ const LeaderboardPage: React.FC = () => {
   const [sheetError, setSheetError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (cachedLeaderboard) return;
-
     let cancelled = false;
-    void fetchLeaderboardOnce()
+    void fetchLeaderboard()
       .then((entries) => {
         if (!cancelled) setLeaderboard(entries);
       })
