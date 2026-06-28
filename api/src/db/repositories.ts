@@ -13,6 +13,7 @@ import type {
 } from './types';
 import { HARDCODED_GROUP_STAGE } from '../constants/tournamentTeams';
 import { canRevealLivePredictions } from '../utils/matchStatus';
+import { formatBracketPlaceholderLabel } from '../utils/knockout';
 import {
   enrichMatchWithTeams,
   isPickableNationTeamId,
@@ -1014,9 +1015,18 @@ export async function deleteMatchById(matchId: string): Promise<boolean> {
 export async function resolveTeamInfoForMatch(team1: string, team2: string) {
   const teams = await findTeamsByIds([team1, team2]);
   const map = teamMapFromDocs(teams);
+
+  const infoFor = (teamId: string) => {
+    const placeholderLabel = formatBracketPlaceholderLabel(teamId);
+    if (placeholderLabel) {
+      return { teamName: placeholderLabel, countryLogo: null };
+    }
+    return map.get(teamId) ?? { teamName: teamId, countryLogo: null };
+  };
+
   return {
-    team1Info: map.get(team1) ?? { teamName: team1, countryLogo: null },
-    team2Info: map.get(team2) ?? { teamName: team2, countryLogo: null },
+    team1Info: infoFor(team1),
+    team2Info: infoFor(team2),
   };
 }
 

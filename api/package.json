@@ -14,6 +14,8 @@
     "seed": "tsx scripts/seedMongo.ts",
     "seed:mongo": "tsx scripts/seedMongo.ts",
     "seed:export": "tsx scripts/exportSeedFromDb.ts",
+    "update:knockout-fixtures": "tsx scripts/updateKnockoutFixtures.ts",
+    "update:knockout-matches": "tsx scripts/updateKnockoutMatches.ts",
     "backfill:prediction-snapshots": "tsx scripts/backfillPredictionSnapshots.ts",
     "fix:decimal-goal-scores": "tsx scripts/fixDecimalGoalScores.ts",
     "sync:user-total-points": "tsx scripts/syncUserTotalPoints.ts",

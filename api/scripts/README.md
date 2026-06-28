@@ -13,6 +13,7 @@ All fixture data lives in:
 |---------|---------|
 | `npm run seed` | Wipe `teams` + `matches`, reload from JSON |
 | `npm run seed:export` | Export current MongoDB `teams` + `matches` back into the JSON file |
+| `npm run update:knockout-fixtures` | Update Round of 32 teams/times in DB from JSON (keeps match IDs + user predictions). Defaults to all tenant DBs; pass names to limit: `npm run update:knockout-fixtures -- wc26Prod fifaPrediction` |
 
 ## Collections
 

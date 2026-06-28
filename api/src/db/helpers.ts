@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb';
 import type { MatchDocument, TeamDocument, UserDocument } from './types';
+import { formatBracketPlaceholderLabel } from '../utils/knockout';
 
 /** FIFA nation codes (excludes knockout placeholders like 1A, W73). */
 export function isPickableNationTeamId(teamId: string): boolean {
@@ -81,17 +82,30 @@ export function enrichMatchWithTeams(
   const base = formatMatchForApi(match);
   const t1 = String(match.team1 ?? '');
   const t2 = String(match.team2 ?? '');
-  const info1 = teamById.get(t1);
-  const info2 = teamById.get(t2);
+
+  const buildInfo = (teamId: string, stored: MatchDocument['team1Info']) => {
+    const placeholderLabel = formatBracketPlaceholderLabel(teamId);
+    if (placeholderLabel) {
+      return { teamName: placeholderLabel, countryLogo: null };
+    }
+
+    const fromTeams = teamById.get(teamId);
+    if (stored?.teamName && !formatBracketPlaceholderLabel(stored.teamName)) {
+      return { teamName: stored.teamName, countryLogo: stored.countryLogo ?? null };
+    }
+    if (fromTeams) {
+      return { teamName: fromTeams.teamName, countryLogo: fromTeams.countryLogo ?? null };
+    }
+    if (stored) {
+      return { teamName: stored.teamName, countryLogo: stored.countryLogo ?? null };
+    }
+    return null;
+  };
 
   return {
     ...base,
-    team1Info:
-      match.team1Info ??
-      (info1 ? { teamName: info1.teamName, countryLogo: info1.countryLogo ?? null } : null),
-    team2Info:
-      match.team2Info ??
-      (info2 ? { teamName: info2.teamName, countryLogo: info2.countryLogo ?? null } : null),
+    team1Info: buildInfo(t1, match.team1Info),
+    team2Info: buildInfo(t2, match.team2Info),
   };
 }
 

@@ -1084,179 +1084,179 @@
     },
     {
       "sequence": 73,
-      "team1": "USA",
-      "team2": "BRA",
+      "team1": "RSA",
+      "team2": "CAN",
       "round": "Round of 32",
       "group": null,
-      "matchTime": "2026-06-24T02:00:00.000Z",
-      "predictionsEndingTime": "2026-06-24T01:00:00.000Z",
+      "matchTime": "2026-06-28T19:00:00.000Z",
+      "predictionsEndingTime": "2026-06-28T18:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#USA_BRA"
+      "matchTag": "#RSA_CAN"
     },
     {
       "sequence": 74,
-      "team1": "1E",
-      "team2": "3ABCDF",
+      "team1": "GER",
+      "team2": "PAR",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-06-29T20:30:00.000Z",
       "predictionsEndingTime": "2026-06-29T19:30:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1E_3ABCDF"
+      "matchTag": "#GER_PAR"
     },
     {
       "sequence": 75,
-      "team1": "1F",
-      "team2": "2C",
+      "team1": "NED",
+      "team2": "MAR",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-06-30T01:00:00.000Z",
       "predictionsEndingTime": "2026-06-30T00:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1F_2C"
+      "matchTag": "#NED_MAR"
     },
     {
       "sequence": 76,
-      "team1": "1C",
-      "team2": "2F",
+      "team1": "BRA",
+      "team2": "JPN",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-06-29T17:00:00.000Z",
       "predictionsEndingTime": "2026-06-29T16:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1C_2F"
+      "matchTag": "#BRA_JPN"
     },
     {
       "sequence": 77,
-      "team1": "1I",
-      "team2": "3CDFGH",
+      "team1": "FRA",
+      "team2": "SWE",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-06-30T21:00:00.000Z",
       "predictionsEndingTime": "2026-06-30T20:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1I_3CDFGH"
+      "matchTag": "#FRA_SWE"
     },
     {
       "sequence": 78,
-      "team1": "2E",
-      "team2": "2I",
+      "team1": "CIV",
+      "team2": "NOR",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-06-30T17:00:00.000Z",
       "predictionsEndingTime": "2026-06-30T16:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#2E_2I"
+      "matchTag": "#CIV_NOR"
     },
     {
       "sequence": 79,
-      "team1": "1A",
-      "team2": "3CEFHI",
+      "team1": "MEX",
+      "team2": "ECU",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-01T01:00:00.000Z",
       "predictionsEndingTime": "2026-07-01T00:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1A_3CEFHI"
+      "matchTag": "#MEX_ECU"
     },
     {
       "sequence": 80,
-      "team1": "1L",
-      "team2": "3EHIJK",
+      "team1": "ENG",
+      "team2": "COD",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-01T16:00:00.000Z",
       "predictionsEndingTime": "2026-07-01T15:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1L_3EHIJK"
+      "matchTag": "#ENG_COD"
     },
     {
       "sequence": 81,
-      "team1": "1D",
-      "team2": "3BEFIJ",
+      "team1": "USA",
+      "team2": "BIH",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-02T00:00:00.000Z",
       "predictionsEndingTime": "2026-07-01T23:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1D_3BEFIJ"
+      "matchTag": "#USA_BIH"
     },
     {
       "sequence": 82,
-      "team1": "1G",
-      "team2": "3AEHIJ",
+      "team1": "BEL",
+      "team2": "SEN",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-01T20:00:00.000Z",
       "predictionsEndingTime": "2026-07-01T19:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1G_3AEHIJ"
+      "matchTag": "#BEL_SEN"
     },
     {
       "sequence": 83,
-      "team1": "2K",
-      "team2": "2L",
+      "team1": "POR",
+      "team2": "CRO",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-02T23:00:00.000Z",
       "predictionsEndingTime": "2026-07-02T22:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#2K_2L"
+      "matchTag": "#POR_CRO"
     },
     {
       "sequence": 84,
-      "team1": "1H",
-      "team2": "2J",
+      "team1": "ESP",
+      "team2": "AUT",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-02T19:00:00.000Z",
       "predictionsEndingTime": "2026-07-02T18:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1H_2J"
+      "matchTag": "#ESP_AUT"
     },
     {
       "sequence": 85,
-      "team1": "1B",
-      "team2": "3EFGIJ",
+      "team1": "SUI",
+      "team2": "ALG",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-03T03:00:00.000Z",
       "predictionsEndingTime": "2026-07-03T02:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1B_3EFGIJ"
+      "matchTag": "#SUI_ALG"
     },
     {
       "sequence": 86,
-      "team1": "1J",
-      "team2": "2H",
+      "team1": "ARG",
+      "team2": "CPV",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-03T22:00:00.000Z",
       "predictionsEndingTime": "2026-07-03T21:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1J_2H"
+      "matchTag": "#ARG_CPV"
     },
     {
       "sequence": 87,
-      "team1": "1K",
-      "team2": "3DEIJL",
+      "team1": "COL",
+      "team2": "GHA",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-04T01:30:00.000Z",
       "predictionsEndingTime": "2026-07-04T00:30:00.000Z",
       "status": "scheduled",
-      "matchTag": "#1K_3DEIJL"
+      "matchTag": "#COL_GHA"
     },
     {
       "sequence": 88,
-      "team1": "2D",
-      "team2": "2G",
+      "team1": "AUS",
+      "team2": "EGY",
       "round": "Round of 32",
       "group": null,
       "matchTime": "2026-07-03T18:00:00.000Z",
       "predictionsEndingTime": "2026-07-03T17:00:00.000Z",
       "status": "scheduled",
-      "matchTag": "#2D_2G"
+      "matchTag": "#AUS_EGY"
     },
     {
       "sequence": 89,

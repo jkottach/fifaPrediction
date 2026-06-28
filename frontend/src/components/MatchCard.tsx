@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { apiService } from '../services/apiService';
 import { getPredictionDeadlineIso, isMatchOpenForPrediction } from '../utils/matchDeadline';
 import { isMatchLive } from '../utils/matchStatus';
-import { needsPenaltyWinner } from '../utils/knockout';
+import { needsPenaltyWinner, bracketPlaceholderInitials, getTeamDisplayName } from '../utils/knockout';
 import {
   GOAL_SCORE_MAX,
   GoalScoreInput,
@@ -45,12 +45,13 @@ function useCountdown(targetDate: string) {
 }
 
 // ── Flag image with fallback ───────────────────────────────────────────────────
-const Flag: React.FC<{ src?: string | null; alt: string }> = ({ src, alt }) => {
+const Flag: React.FC<{ src?: string | null; alt: string; teamId?: string }> = ({ src, alt, teamId }) => {
   const [err, setErr] = useState(false);
+  const initials = teamId ? bracketPlaceholderInitials(teamId) : alt.slice(0, 3);
   if (!src || err) {
     return (
       <div className="w-11 h-11 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white font-bold text-[10px] shrink-0">
-        {alt.slice(0, 3)}
+        {initials}
       </div>
     );
   }
@@ -143,8 +144,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
     }
   };
 
-  const t1Name = match.team1Info?.teamName ?? match.team1;
-  const t2Name = match.team2Info?.teamName ?? match.team2;
+  const t1Name = getTeamDisplayName(match.team1, match.team1Info);
+  const t2Name = getTeamDisplayName(match.team2, match.team2Info);
   const roundStr = String(match.round ?? '').trim();
   const roundLabel = roundStr
     ? /^\d+$/.test(roundStr)
@@ -194,7 +195,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
 
       <div className="relative z-10 flex items-center justify-between px-4 py-2 gap-1.5">
         <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
-          <Flag src={match.team1Info?.countryLogo} alt={match.team1} />
+          <Flag src={match.team1Info?.countryLogo} alt={match.team1} teamId={match.team1} />
           <span className="text-white font-bold text-[11px] text-center leading-tight line-clamp-2 max-w-[80px]">
             {t1Name}
           </span>
@@ -270,7 +271,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredicti
         </div>
 
         <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
-          <Flag src={match.team2Info?.countryLogo} alt={match.team2} />
+          <Flag src={match.team2Info?.countryLogo} alt={match.team2} teamId={match.team2} />
           <span className="text-white font-bold text-[11px] text-center leading-tight line-clamp-2 max-w-[80px]">
             {t2Name}
           </span>
