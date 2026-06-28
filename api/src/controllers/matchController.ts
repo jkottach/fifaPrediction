@@ -120,29 +120,24 @@ export const getLatestCompletedMatchTopEarners = async (req: AuthRequest, res: R
 export const getLiveMatchPredictions = async (_req: AuthRequest, res: Response) => {
   try {
     const groups = await listLiveMatchesWithPredictions();
+    if (groups.length === 0) {
+      return res.json({ matches: [] });
+    }
 
-    const matches = await Promise.all(
-      groups.map(async ({ match, predictions }) => {
-        let enrichedMatch;
-        try {
-          enrichedMatch = await getEnrichedMatch(match);
-        } catch {
-          enrichedMatch = formatMatchForApi(match);
-        }
+    const enrichedMatches = await getEnrichedMatches(groups.map((group) => group.match));
+    const enrichedById = new Map(enrichedMatches.map((match) => [match.matchId, match]));
 
-        return {
-          match: enrichedMatch,
-          predictions: predictions.map((p) => ({
-            userId: p.userId,
-            name: p.name,
-            team1Score: p.team1Score,
-            team2Score: p.team2Score,
-            submittedTime: p.submittedTime,
-            ...(p.comment ? { comment: p.comment } : {}),
-          })),
-        };
-      })
-    );
+    const matches = groups.map(({ match, predictions }) => ({
+      match: enrichedById.get(match._id.toString()) ?? formatMatchForApi(match),
+      predictions: predictions.map((p) => ({
+        userId: p.userId,
+        name: p.name,
+        team1Score: p.team1Score,
+        team2Score: p.team2Score,
+        submittedTime: p.submittedTime,
+        ...(p.comment ? { comment: p.comment } : {}),
+      })),
+    }));
 
     res.json({ matches });
   } catch (error) {

@@ -4,8 +4,8 @@ import { logger } from '../lib/logger';
 import {
   computeRankTrendAfterLastGame,
   countDistinctPointTiersAhead,
-  findUserById,
   getLeaderboardRevision as loadLeaderboardRevision,
+  getUserTotalPoints,
   listUsersByTotalPoints,
   type RankTrend,
 } from '../db/repositories';
@@ -94,12 +94,12 @@ export const getUserStats = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ error: 'User not authenticated' });
 
-    const user = await findUserById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const totalPoints = await getUserTotalPoints(userId);
+    if (totalPoints === null) return res.status(404).json({ error: 'User not found' });
 
-    const tiersAhead = await countDistinctPointTiersAhead(user.totalPoints);
-    const rank = user.totalPoints > 0 ? tiersAhead + 1 : '-';
-    const stats = { rank, totalPoints: user.totalPoints };
+    const tiersAhead = await countDistinctPointTiersAhead(totalPoints);
+    const rank = totalPoints > 0 ? tiersAhead + 1 : '-';
+    const stats = { rank, totalPoints };
 
     res.json({
       overall: stats,

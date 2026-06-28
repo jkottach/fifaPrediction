@@ -30,6 +30,17 @@ export async function findUserById(userId: string): Promise<UserDocument | null>
   return getUsersCollection().findOne({ _id: oid });
 }
 
+export async function getUserTotalPoints(userId: string): Promise<number | null> {
+  const oid = toObjectId(userId);
+  if (!oid) return null;
+  const user = await getUsersCollection().findOne(
+    { _id: oid },
+    { projection: { totalPoints: 1 } }
+  );
+  if (!user) return null;
+  return user.totalPoints ?? 0;
+}
+
 export async function findUserByEmail(email: string): Promise<UserDocument | null> {
   return getUsersCollection().findOne({ email });
 }
@@ -480,34 +491,45 @@ export async function listLiveMatchesWithPredictions(): Promise<
     .sort({ matchTime: 1 })
     .toArray();
 
-  const results: Array<{ match: MatchDocument; predictions: LiveMatchPredictionRow[] }> = [];
+  const liveMatches = candidates.filter((match) => canRevealLivePredictions(match, nowMs));
+  if (liveMatches.length === 0) return [];
 
-  for (const match of candidates) {
-    if (!canRevealLivePredictions(match, nowMs)) continue;
+  const liveMatchIds = liveMatches.map((match) => match._id.toString());
+  const liveMatchIdSet = new Set(liveMatchIds);
 
-    const matchId = match._id.toString();
-    const users = await getUsersCollection()
-      .find({
-        ...activeUserFilter,
-        'predictions.matchId': matchId,
-      })
-      .toArray();
+  const users = await getUsersCollection()
+    .find({
+      ...activeUserFilter,
+      'predictions.matchId': { $in: liveMatchIds },
+    })
+    .project({ firstName: 1, lastName: 1, email: 1, predictions: 1 })
+    .toArray();
 
-    const predictions: LiveMatchPredictionRow[] = [];
+  const predictionsByMatchId = new Map<string, LiveMatchPredictionRow[]>(
+    liveMatchIds.map((matchId) => [matchId, []])
+  );
 
-    for (const user of users) {
-      const pred = user.predictions.find((p) => p.matchId === matchId);
-      if (!pred) continue;
+  for (const user of users) {
+    const userId = user._id.toString();
+    const name = leaderboardDisplayName(user as UserDocument);
 
-      predictions.push({
-        userId: user._id.toString(),
-        name: leaderboardDisplayName(user),
+    for (const pred of user.predictions) {
+      if (!liveMatchIdSet.has(pred.matchId)) continue;
+
+      predictionsByMatchId.get(pred.matchId)!.push({
+        userId,
+        name,
         team1Score: pred.team1Score,
         team2Score: pred.team2Score,
         submittedTime: pred.submittedTime,
         ...(pred.comment ? { comment: pred.comment } : {}),
       });
     }
+  }
+
+  return liveMatches.map((match) => {
+    const matchId = match._id.toString();
+    const predictions = predictionsByMatchId.get(matchId) ?? [];
 
     predictions.sort((a, b) => {
       const scoreDiff = b.team1Score - a.team1Score;
@@ -517,10 +539,8 @@ export async function listLiveMatchesWithPredictions(): Promise<
       return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
 
-    results.push({ match, predictions });
-  }
-
-  return results;
+    return { match, predictions };
+  });
 }
 
 function denseOverallRankFromTotals(

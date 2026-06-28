@@ -81,34 +81,24 @@ const Dashboard: React.FC = () => {
 
   const refreshLiveMatches = useCallback(async () => {
     try {
-      const [openResult, scheduledResult, ongoingResult, livePredictionsResult] =
-        await Promise.allSettled([
-          apiService.getOpenMatches(1, 50),
-          apiService.getAllMatches('scheduled', 1, 100),
-          apiService.getAllMatches('ongoing', 1, 20),
-          apiService.getLiveMatchPredictions(),
-        ]);
+      const [openResult, livePredictionsResult] = await Promise.allSettled([
+        apiService.getOpenMatches(1, 100),
+        apiService.getLiveMatchPredictions(),
+      ]);
 
-      const scheduled =
-        scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
-      const ongoing = ongoingResult.status === 'fulfilled' ? ongoingResult.value.data?.matches ?? [] : [];
       const open = openResult.status === 'fulfilled' ? openResult.value.data?.matches ?? [] : [];
 
       if (livePredictionsResult.status === 'fulfilled') {
         applyLivePredictionsResponse(livePredictionsResult.value.data);
       }
 
-      if (
-        openResult.status !== 'fulfilled' &&
-        scheduledResult.status !== 'fulfilled' &&
-        ongoingResult.status !== 'fulfilled'
-      ) {
+      if (openResult.status !== 'fulfilled') {
         return;
       }
 
       setMatches((prev) => {
         const completed = prev.filter((m) => normalizeMatchStatus(m.status) === 'completed');
-        return mergeMatches(scheduled, open, ongoing, completed);
+        return mergeMatches(open, completed);
       });
     } catch (error) {
       console.error('Failed to refresh live matches:', error);
@@ -130,32 +120,18 @@ const Dashboard: React.FC = () => {
 
     const errors: string[] = [];
 
-    const [openResult, scheduledResult, ongoingResult, predictionsResult, statsResult, livePredictionsResult] =
-      await Promise.allSettled([
-        apiService.getOpenMatches(1, 50),
-        apiService.getAllMatches('scheduled', 1, 100),
-        apiService.getAllMatches('ongoing', 1, 20),
-        apiService.getUserPredictions(1, 100),
-        apiService.getUserStats(),
-        apiService.getLiveMatchPredictions(),
-      ]);
+    const [openResult, predictionsResult, statsResult] = await Promise.allSettled([
+      apiService.getOpenMatches(1, 100),
+      apiService.getUserPredictions(1, 100, true),
+      apiService.getUserStats(),
+    ]);
 
-    const scheduled =
-      scheduledResult.status === 'fulfilled' ? scheduledResult.value.data?.matches ?? [] : [];
-    const ongoing = ongoingResult.status === 'fulfilled' ? ongoingResult.value.data?.matches ?? [] : [];
     const open = openResult.status === 'fulfilled' ? openResult.value.data?.matches ?? [] : [];
 
-    if (
-      openResult.status === 'fulfilled' ||
-      scheduledResult.status === 'fulfilled' ||
-      ongoingResult.status === 'fulfilled'
-    ) {
-      setMatches(mergeMatches(scheduled, open, ongoing));
+    if (openResult.status === 'fulfilled') {
+      setMatches(open);
     } else {
-      console.error(
-        'Failed to load matches:',
-        openResult.reason ?? scheduledResult.reason ?? ongoingResult.reason
-      );
+      console.error('Failed to load matches:', openResult.reason);
       setMatches([]);
       errors.push('matches');
     }
@@ -174,12 +150,6 @@ const Dashboard: React.FC = () => {
       errors.push('rank');
     }
 
-    if (livePredictionsResult.status === 'fulfilled') {
-      applyLivePredictionsResponse(livePredictionsResult.value.data);
-    } else {
-      console.error('Failed to load live predictions:', livePredictionsResult.reason);
-    }
-
     if (errors.length > 0) {
       setLoadError(
         errors.includes('matches')
@@ -189,6 +159,13 @@ const Dashboard: React.FC = () => {
     }
 
     setLoading(false);
+
+    void apiService
+      .getLiveMatchPredictions()
+      .then((res) => applyLivePredictionsResponse(res.data))
+      .catch((error) => {
+        console.error('Failed to load live predictions:', error);
+      });
   };
 
   const handlePredictionSubmit = (

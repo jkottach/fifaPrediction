@@ -140,9 +140,9 @@ class ApiService {
     return this.client.post('/predictions', data);
   }
 
-  getUserPredictions(page?: number, limit?: number) {
+  getUserPredictions(page?: number, limit?: number, minimal?: boolean) {
     return this.client.get('/predictions', {
-      params: { page, limit },
+      params: { page, limit, minimal: minimal ? 'true' : undefined },
       skipAuthRedirect: true,
     } as AuthRequestConfig);
   }

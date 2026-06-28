@@ -84,7 +84,8 @@ export const submitPrediction = async (req: AuthRequest, res: Response) => {
 export const getUserPredictions = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    const { matchId, page = '1', limit = '10' } = req.query;
+    const { matchId, page = '1', limit = '10', minimal } = req.query;
+    const minimalResponse = minimal === 'true' || minimal === '1';
 
     if (!userId) return res.status(401).json({ error: 'User not authenticated' });
 
@@ -103,15 +104,24 @@ export const getUserPredictions = async (req: AuthRequest, res: Response) => {
     const total = predictions.length;
     const slice = predictions.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
-    const populatedPredictions = await attachMatchToPredictions(user, slice);
+    const populatedPredictions = minimalResponse
+      ? slice.map((prediction) => ({
+          ...prediction,
+          _id: prediction.matchId,
+          userId,
+          matchId: prediction.matchId,
+        }))
+      : await attachMatchToPredictions(user, slice);
 
-    populatedPredictions.sort((a, b) => {
-      const matchA = a.matchId as { matchTime?: string | Date } | null;
-      const matchB = b.matchId as { matchTime?: string | Date } | null;
-      const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
-      const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
-      return timeB - timeA;
-    });
+    if (!minimalResponse) {
+      populatedPredictions.sort((a, b) => {
+        const matchA = a.matchId as { matchTime?: string | Date } | null;
+        const matchB = b.matchId as { matchTime?: string | Date } | null;
+        const timeA = matchA?.matchTime ? new Date(matchA.matchTime).getTime() : 0;
+        const timeB = matchB?.matchTime ? new Date(matchB.matchTime).getTime() : 0;
+        return timeB - timeA;
+      });
+    }
 
     res.json({
       predictions: populatedPredictions,
