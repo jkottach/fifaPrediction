@@ -154,7 +154,7 @@ const Home: React.FC = () => {
             </p>
             <ul className="space-y-1.5 text-[13px] text-slate-700">
               <li className="flex justify-between gap-3">
-                <span>Correct result (win / draw / loss)</span>
+                <span>Correct final result (win / loss; penalties decide in knockouts)</span>
                 <span className="font-semibold text-emerald-700 shrink-0">
                   +{MATCH_POINTS.correctResult}
                 </span>

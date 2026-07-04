@@ -5,6 +5,7 @@ import {
   updatePredictionPointsForMatch,
   applySnapshotsAfterMatchFinalized,
 } from '../db/repositories';
+import { isKnockoutMatch } from '../utils/knockout';
 
 interface ScoringCriteria {
   correctResult: number;
@@ -22,27 +23,66 @@ const SCORING: ScoringCriteria = {
   correctPenaltyWinner: 2,
 };
 
+/**
+ * Determines the final match outcome as 1 (team1 wins), -1 (team2 wins), or 0 (draw).
+ * For knockout matches, penalties decide the winner — there is no draw.
+ */
+function getFinalOutcome(
+  team1Score: number,
+  team2Score: number,
+  opts?: { isKnockout?: boolean; penaltyWinner?: string | null; team1?: string; team2?: string }
+): 1 | -1 | 0 {
+  if (team1Score > team2Score) return 1;
+  if (team1Score < team2Score) return -1;
+
+  if (opts?.isKnockout && opts.penaltyWinner) {
+    if (opts.penaltyWinner === opts.team1) return 1;
+    if (opts.penaltyWinner === opts.team2) return -1;
+  }
+
+  return 0;
+}
+
+export interface CalculatePointsOptions {
+  isKnockout?: boolean;
+  actualPenaltyWinner?: string | null;
+  predictedPenaltyWinner?: string | null;
+  team1?: string;
+  team2?: string;
+}
+
 export const calculatePredictionPoints = (
   predictedTeam1: number,
   predictedTeam2: number,
   actualTeam1: number,
-  actualTeam2: number
+  actualTeam2: number,
+  opts?: CalculatePointsOptions
 ): number => {
   let points = 0;
 
-  const predictedDiff = predictedTeam1 - predictedTeam2;
-  const actualDiff = actualTeam1 - actualTeam2;
+  const predictedOutcome = getFinalOutcome(predictedTeam1, predictedTeam2, {
+    isKnockout: opts?.isKnockout,
+    penaltyWinner: opts?.predictedPenaltyWinner,
+    team1: opts?.team1,
+    team2: opts?.team2,
+  });
 
-  if (
-    (predictedDiff > 0 && actualDiff > 0) ||
-    (predictedDiff < 0 && actualDiff < 0) ||
-    (predictedDiff === 0 && actualDiff === 0)
-  ) {
+  const actualOutcome = getFinalOutcome(actualTeam1, actualTeam2, {
+    isKnockout: opts?.isKnockout,
+    penaltyWinner: opts?.actualPenaltyWinner,
+    team1: opts?.team1,
+    team2: opts?.team2,
+  });
+
+  if (predictedOutcome === actualOutcome) {
     points += SCORING.correctResult;
   }
 
   if (predictedTeam1 === actualTeam1) points += SCORING.correctTeam1Score;
   if (predictedTeam2 === actualTeam2) points += SCORING.correctTeam2Score;
+
+  const predictedDiff = predictedTeam1 - predictedTeam2;
+  const actualDiff = actualTeam1 - actualTeam2;
   if (Math.abs(predictedDiff) === Math.abs(actualDiff)) points += SCORING.correctGoalDifference;
 
   return points;
@@ -57,6 +97,7 @@ export const processMatchResults = async (matchId: string) => {
     throw new Error('Match scores not set');
   }
 
+  const knockout = isKnockoutMatch(match);
   const users = await findUsersWithPredictionForMatch(matchId);
 
   for (const user of users) {
@@ -67,7 +108,14 @@ export const processMatchResults = async (matchId: string) => {
       prediction.team1Score,
       prediction.team2Score,
       match.team1Score!,
-      match.team2Score!
+      match.team2Score!,
+      {
+        isKnockout: knockout,
+        actualPenaltyWinner: match.penaltyWinner ?? null,
+        predictedPenaltyWinner: prediction.penaltyWinner ?? null,
+        team1: match.team1,
+        team2: match.team2,
+      }
     );
 
     const isDraw = match.team1Score === match.team2Score;
