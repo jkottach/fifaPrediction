@@ -20,7 +20,7 @@ const SCORING: ScoringCriteria = {
   correctTeam1Score: 2,
   correctTeam2Score: 2,
   correctGoalDifference: 1,
-  correctPenaltyWinner: 2,
+  correctPenaltyWinner: 5,
 };
 
 /**
