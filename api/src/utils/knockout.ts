@@ -1,3 +1,24 @@
+/** Normalize nation / placeholder team IDs for reliable comparisons. */
+export function normalizeTeamId(teamId: string): string {
+  return teamId.trim().toUpperCase();
+}
+
+export function teamIdsEqual(a: string, b: string): boolean {
+  return normalizeTeamId(a) === normalizeTeamId(b);
+}
+
+/** Match a pick to team1 or team2 (case-insensitive) and return the canonical stored id. */
+export function resolveCanonicalTeamId(
+  pick: string,
+  team1: string,
+  team2: string
+): string | null {
+  const normalized = normalizeTeamId(pick);
+  if (normalizeTeamId(team1) === normalized) return team1.trim();
+  if (normalizeTeamId(team2) === normalized) return team2.trim();
+  return null;
+}
+
 /** Knockout fixtures have a non–group-stage round and no group letter. */
 export function isKnockoutMatch(match: { round?: string; group?: string | null }): boolean {
   const round = String(match.round ?? '').trim().toLowerCase();

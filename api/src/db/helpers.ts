@@ -15,6 +15,11 @@ export function formatMatchId(match: MatchDocument): string {
   return match._id.toString();
 }
 
+/** Compare match ids stored as strings, ObjectIds, or BSON values. */
+export function matchIdsEqual(a: unknown, b: unknown): boolean {
+  return String(a) === String(b);
+}
+
 function toIso(value: Date | string | undefined | null): string | null {
   if (value == null) return null;
   const d = value instanceof Date ? value : new Date(value);
