@@ -643,7 +643,7 @@ export async function backfillAllPredictionSnapshots(): Promise<{
 }
 
 export async function applySnapshotsAfterMatchFinalized(matchId: string): Promise<void> {
-  rankTrendCache = null;
+  clearRankTrendCache();
   const completedMatches = await getMatchesCollection()
     .find({ status: 'completed' })
     .sort({ matchTime: 1, sequence: 1 })
@@ -734,12 +734,28 @@ export async function listCompletedMatchIdsInOrder(): Promise<string[]> {
 export async function getLeaderboardRevision(): Promise<{
   lastCompletedMatchId: string | null;
   completedMatchCount: number;
+  /** Sum of active users' totalPoints — changes when points are recalculated. */
+  pointsRevision: number;
 }> {
-  const completedMatchIds = await listCompletedMatchIdsInOrder();
+  const [completedMatchIds, pointsAgg] = await Promise.all([
+    listCompletedMatchIdsInOrder(),
+    getUsersCollection()
+      .aggregate<{ total: number }>([
+        { $match: activeUserFilter },
+        { $group: { _id: null, total: { $sum: { $ifNull: ['$totalPoints', 0] } } } },
+      ])
+      .toArray(),
+  ]);
+
   return {
     lastCompletedMatchId: completedMatchIds.at(-1) ?? null,
     completedMatchCount: completedMatchIds.length,
+    pointsRevision: pointsAgg[0]?.total ?? 0,
   };
+}
+
+export function clearRankTrendCache(): void {
+  rankTrendCache = null;
 }
 
 export async function computeMatchOnlyRanksAtMilestone(

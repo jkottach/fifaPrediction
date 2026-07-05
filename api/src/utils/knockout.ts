@@ -27,6 +27,30 @@ export function isKnockoutMatch(match: { round?: string; group?: string | null }
   return true;
 }
 
+/** Round of 32 uses legacy outcome-based knockout scoring (M73–M88). */
+export function isRoundOf32Match(match: { round?: string; sequence?: number }): boolean {
+  const round = String(match.round ?? '').trim().toLowerCase();
+  if (round === 'round of 32') return true;
+  const seq = match.sequence;
+  return seq != null && seq >= 73 && seq <= 88;
+}
+
+/** Advancer-based knockout scoring from Round of 16 through the Final (M89+). */
+const ADVANCER_SCORING_ROUNDS = new Set([
+  'round of 16',
+  'quarter finals',
+  'semi finals',
+  '3rd place',
+  'final',
+]);
+
+export function usesAdvancerKnockoutScoring(match: { round?: string; sequence?: number }): boolean {
+  const round = String(match.round ?? '').trim().toLowerCase();
+  if (ADVANCER_SCORING_ROUNDS.has(round)) return true;
+  const seq = match.sequence;
+  return seq != null && seq >= 89;
+}
+
 /** FIFA nation codes (excludes knockout placeholders like 1A, W73, 3EFGIJ). */
 export function isNationTeamId(teamId: string): boolean {
   return /^[A-Z]{3}$/.test(teamId) && !/^[0-9WL]/.test(teamId);
