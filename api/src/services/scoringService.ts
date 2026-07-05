@@ -174,6 +174,6 @@ export const finalizeMatchScores = async (
     status: 'completed',
   });
   if (!updated) throw new Error('Match not found');
-  await processMatchResults(matchId);
+  await processMatchResults(updated._id.toString());
   return updated;
 };
