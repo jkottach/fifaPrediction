@@ -95,6 +95,7 @@ export interface Prediction {
 export interface LeaderboardRevision {
   lastCompletedMatchId: string | null;
   completedMatchCount: number;
+  pointsRevision?: number;
 }
 
 export interface LeaderboardEntry {

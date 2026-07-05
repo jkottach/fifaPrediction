@@ -8,7 +8,7 @@ import { spinner } from '../theme';
 
 const LEADERBOARD_LIMIT = 50;
 const PREDICTIONS_PAGE_SIZE = 10;
-const LEADERBOARD_CACHE_KEY = 'fifa-leaderboard';
+const LEADERBOARD_CACHE_KEY = 'fifa-leaderboard-v2';
 
 interface LeaderboardCache {
   revision: LeaderboardRevision;
@@ -18,7 +18,8 @@ interface LeaderboardCache {
 function revisionsMatch(a: LeaderboardRevision, b: LeaderboardRevision): boolean {
   return (
     a.lastCompletedMatchId === b.lastCompletedMatchId &&
-    a.completedMatchCount === b.completedMatchCount
+    a.completedMatchCount === b.completedMatchCount &&
+    (a.pointsRevision ?? 0) === (b.pointsRevision ?? 0)
   );
 }
 
