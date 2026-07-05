@@ -5,7 +5,14 @@ import {
   updatePredictionPointsForMatch,
   applySnapshotsAfterMatchFinalized,
 } from '../db/repositories';
-import { isKnockoutMatch } from '../utils/knockout';
+import { matchIdsEqual } from '../db/helpers';
+import {
+  isKnockoutMatch,
+  usesAdvancerKnockoutScoring,
+  normalizeTeamId,
+  resolveCanonicalTeamId,
+  teamIdsEqual,
+} from '../utils/knockout';
 
 interface ScoringCriteria {
   correctResult: number;
@@ -24,8 +31,35 @@ const SCORING: ScoringCriteria = {
 };
 
 /**
- * Determines the final match outcome as 1 (team1 wins), -1 (team2 wins), or 0 (draw).
- * For knockout matches, penalties decide the winner — there is no draw.
+ * Resolves the team that wins/advances in a knockout match.
+ * Full-time winner if not level; otherwise the penalty shootout winner.
+ */
+function resolveKnockoutWinner(
+  team1Score: number,
+  team2Score: number,
+  team1: string,
+  team2: string,
+  penaltyWinner?: string | null
+): string | null {
+  const t1 = normalizeTeamId(team1);
+  const t2 = normalizeTeamId(team2);
+  if (team1Score > team2Score) return t1;
+  if (team1Score < team2Score) return t2;
+  if (!penaltyWinner?.trim()) return null;
+  const canonical = resolveCanonicalTeamId(penaltyWinner, team1, team2);
+  return canonical ? normalizeTeamId(canonical) : null;
+}
+
+/** Group-stage outcome: 1 (team1 win), -1 (team2 win), or 0 (draw). */
+function groupStageOutcome(team1Score: number, team2Score: number): 1 | -1 | 0 {
+  if (team1Score > team2Score) return 1;
+  if (team1Score < team2Score) return -1;
+  return 0;
+}
+
+/**
+ * Legacy Round of 32 knockout scoring: compare W/D/L outcomes.
+ * Penalties only affect outcome when full-time is level.
  */
 function getFinalOutcome(
   team1Score: number,
@@ -45,6 +79,8 @@ function getFinalOutcome(
 
 export interface CalculatePointsOptions {
   isKnockout?: boolean;
+  /** Round of 16 through Final use advancer-based knockout scoring; Round of 32 uses legacy outcome scoring. */
+  useAdvancerScoring?: boolean;
   actualPenaltyWinner?: string | null;
   predictedPenaltyWinner?: string | null;
   team1?: string;
@@ -60,22 +96,48 @@ export const calculatePredictionPoints = (
 ): number => {
   let points = 0;
 
-  const predictedOutcome = getFinalOutcome(predictedTeam1, predictedTeam2, {
-    isKnockout: opts?.isKnockout,
-    penaltyWinner: opts?.predictedPenaltyWinner,
-    team1: opts?.team1,
-    team2: opts?.team2,
-  });
-
-  const actualOutcome = getFinalOutcome(actualTeam1, actualTeam2, {
-    isKnockout: opts?.isKnockout,
-    penaltyWinner: opts?.actualPenaltyWinner,
-    team1: opts?.team1,
-    team2: opts?.team2,
-  });
-
-  if (predictedOutcome === actualOutcome) {
-    points += SCORING.correctResult;
+  if (opts?.isKnockout && opts.team1 && opts.team2) {
+    if (opts.useAdvancerScoring) {
+      const predictedWinner = resolveKnockoutWinner(
+        predictedTeam1,
+        predictedTeam2,
+        opts.team1,
+        opts.team2,
+        opts.predictedPenaltyWinner
+      );
+      const actualWinner = resolveKnockoutWinner(
+        actualTeam1,
+        actualTeam2,
+        opts.team1,
+        opts.team2,
+        opts.actualPenaltyWinner
+      );
+      if (predictedWinner && actualWinner && predictedWinner === actualWinner) {
+        points += SCORING.correctResult;
+      }
+    } else {
+      const predictedOutcome = getFinalOutcome(predictedTeam1, predictedTeam2, {
+        isKnockout: true,
+        penaltyWinner: opts.predictedPenaltyWinner,
+        team1: opts.team1,
+        team2: opts.team2,
+      });
+      const actualOutcome = getFinalOutcome(actualTeam1, actualTeam2, {
+        isKnockout: true,
+        penaltyWinner: opts.actualPenaltyWinner,
+        team1: opts.team1,
+        team2: opts.team2,
+      });
+      if (predictedOutcome === actualOutcome) {
+        points += SCORING.correctResult;
+      }
+    }
+  } else {
+    const predictedOutcome = groupStageOutcome(predictedTeam1, predictedTeam2);
+    const actualOutcome = groupStageOutcome(actualTeam1, actualTeam2);
+    if (predictedOutcome === actualOutcome) {
+      points += SCORING.correctResult;
+    }
   }
 
   if (predictedTeam1 === actualTeam1) points += SCORING.correctTeam1Score;
@@ -97,12 +159,19 @@ export const processMatchResults = async (matchId: string) => {
     throw new Error('Match scores not set');
   }
 
-  const knockout = isKnockoutMatch(match);
-  const users = await findUsersWithPredictionForMatch(matchId);
+  const resolvedMatchId = match._id.toString();
+  const users = await findUsersWithPredictionForMatch(resolvedMatchId);
 
   for (const user of users) {
-    const prediction = user.predictions.find((p) => p.matchId === matchId);
+    const prediction = user.predictions.find((p) => matchIdsEqual(p.matchId, resolvedMatchId));
     if (!prediction) continue;
+
+    const useAdvancerScoring = usesAdvancerKnockoutScoring(match);
+    const knockout =
+      isKnockoutMatch(match) ||
+      (useAdvancerScoring &&
+        prediction.team1Score === prediction.team2Score &&
+        !!prediction.penaltyWinner?.trim());
 
     let points = calculatePredictionPoints(
       prediction.team1Score,
@@ -111,6 +180,7 @@ export const processMatchResults = async (matchId: string) => {
       match.team2Score!,
       {
         isKnockout: knockout,
+        useAdvancerScoring,
         actualPenaltyWinner: match.penaltyWinner ?? null,
         predictedPenaltyWinner: prediction.penaltyWinner ?? null,
         team1: match.team1,
@@ -122,17 +192,19 @@ export const processMatchResults = async (matchId: string) => {
     if (
       isDraw &&
       prediction.team1Score === prediction.team2Score &&
-      match.penaltyWinner &&
-      prediction.penaltyWinner &&
-      prediction.penaltyWinner === match.penaltyWinner
+      match.penaltyWinner?.trim() &&
+      prediction.penaltyWinner?.trim() &&
+      (useAdvancerScoring
+        ? teamIdsEqual(prediction.penaltyWinner, match.penaltyWinner)
+        : prediction.penaltyWinner === match.penaltyWinner)
     ) {
       points += SCORING.correctPenaltyWinner;
     }
 
-    await updatePredictionPointsForMatch(user._id.toString(), matchId, points);
+    await updatePredictionPointsForMatch(user._id.toString(), resolvedMatchId, points);
   }
 
-  await applySnapshotsAfterMatchFinalized(matchId);
+  await applySnapshotsAfterMatchFinalized(resolvedMatchId);
 };
 
 export const finalizeMatchScores = async (
@@ -149,6 +221,6 @@ export const finalizeMatchScores = async (
     status: 'completed',
   });
   if (!updated) throw new Error('Match not found');
-  await processMatchResults(matchId);
+  await processMatchResults(updated._id.toString());
   return updated;
 };

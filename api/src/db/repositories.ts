@@ -626,6 +626,10 @@ export async function applySnapshotsAfterMatchFinalized(matchId: string): Promis
   await applyPredictionSnapshotsAtMilestone(matchId, completedMatchIds);
 }
 
+export function clearRankTrendCache(): void {
+  // No server-side rank trend cache on diva branch.
+}
+
 /** Compute overall rank after each completed match (read-time fallback when snapshots are missing). */
 export async function computeOverallRankByPredictionId(
   userId: string

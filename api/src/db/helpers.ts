@@ -10,6 +10,10 @@ export function formatUserId(user: UserDocument): string {
   return user._id.toString();
 }
 
+export function matchIdsEqual(a: unknown, b: unknown): boolean {
+  return String(a) === String(b);
+}
+
 /** Dense ranking: 1, 2, 2, 3… tied scores share a rank. Input must be sorted by points desc. */
 export function assignDenseRanks<T extends { totalPoints: number }>(
   items: T[]
