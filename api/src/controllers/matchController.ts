@@ -16,6 +16,14 @@ import {
   resolveTeamInfoForMatch,
   updateMatchById,
 } from '../db/repositories';
+import { finalizeMatchScores, processMatchResults } from '../services/scoringService';
+
+/** Ignore blank strings so admin saves do not wipe round/group metadata. */
+function optionalNonEmptyString(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  const trimmed = String(value).trim();
+  return trimmed === '' ? undefined : trimmed;
+}
 
 export const getAllTeams = async (_req: AuthRequest, res: Response) => {
   try {
@@ -211,10 +219,29 @@ export const updateMatch = async (req: AuthRequest, res: Response) => {
       team1Score,
       team2Score,
       status,
+      penaltyWinner,
     } = req.body;
 
     const existing = await findMatchById(req.params.matchId);
     if (!existing) return res.status(404).json({ error: 'Match not found' });
+
+    // Admin portal often finalizes via PUT — use the same scoring path as POST /admin/finalize-match.
+    if (
+      status === 'completed' &&
+      team1Score !== undefined &&
+      team2Score !== undefined
+    ) {
+      const updated = await finalizeMatchScores(
+        req.params.matchId,
+        team1Score,
+        team2Score,
+        penaltyWinner ?? null
+      );
+      return res.json({
+        message: 'Match finalized and points calculated successfully',
+        match: formatMatchForApi(updated),
+      });
+    }
 
     const nextTeam1 = team1 ?? existing.team1;
     const nextTeam2 = team2 ?? existing.team2;
@@ -222,6 +249,10 @@ export const updateMatch = async (req: AuthRequest, res: Response) => {
       team1 !== undefined || team2 !== undefined
         ? await resolveTeamInfoForMatch(nextTeam1, nextTeam2)
         : null;
+
+    const resolvedRound = optionalNonEmptyString(round);
+    const resolvedGroup =
+      group === undefined ? undefined : group === null ? null : optionalNonEmptyString(group) ?? null;
 
     const updated = await updateMatchById(req.params.matchId, {
       ...(sequence !== undefined ? { sequence } : {}),
@@ -231,8 +262,8 @@ export const updateMatch = async (req: AuthRequest, res: Response) => {
       ...(teamInfo?.team2Info ? { team2Info: teamInfo.team2Info } : {}),
       ...(matchTime !== undefined ? { matchTime: new Date(matchTime) } : {}),
       ...(predictionsEndingTime !== undefined ? { predictionsEndingTime: new Date(predictionsEndingTime) } : {}),
-      ...(round !== undefined ? { round } : {}),
-      ...(group !== undefined ? { group } : {}),
+      ...(resolvedRound !== undefined ? { round: resolvedRound } : {}),
+      ...(resolvedGroup !== undefined ? { group: resolvedGroup } : {}),
       ...(comment !== undefined ? { comment } : {}),
       ...(team1Score !== undefined ? { team1Score } : {}),
       ...(team2Score !== undefined ? { team2Score } : {}),
@@ -241,6 +272,16 @@ export const updateMatch = async (req: AuthRequest, res: Response) => {
         ? { matchTag: matchTag || buildMatchTag(nextTeam1, nextTeam2) }
         : {}),
     });
+
+    if (
+      updated?.status === 'completed' &&
+      updated.team1Score !== null &&
+      updated.team1Score !== undefined &&
+      updated.team2Score !== null &&
+      updated.team2Score !== undefined
+    ) {
+      await processMatchResults(updated._id.toString());
+    }
 
     res.json({
       message: 'Match updated successfully',
