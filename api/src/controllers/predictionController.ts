@@ -10,7 +10,7 @@ import {
   upsertUserPrediction,
 } from '../db/repositories';
 import { formatUserId, computeUserTotalPoints } from '../db/helpers';
-import { isKnockoutMatch } from '../utils/knockout';
+import { isKnockoutMatch, resolveCanonicalTeamId } from '../utils/knockout';
 import { normalizeGoalScore } from '../utils/goalScore';
 
 type PopulatedPrediction = Awaited<ReturnType<typeof attachMatchToPredictions>>[number];
@@ -54,12 +54,13 @@ export const submitPrediction = async (req: AuthRequest, res: Response) => {
     let resolvedPenaltyWinner: string | null = null;
     if (isKnockoutMatch(match) && normalizedTeam1Score === normalizedTeam2Score) {
       const pick = String(penaltyWinner ?? '').trim();
-      if (!pick || (pick !== match.team1 && pick !== match.team2)) {
+      const canonical = pick ? resolveCanonicalTeamId(pick, match.team1, match.team2) : null;
+      if (!canonical) {
         return res.status(400).json({
           error: 'Pick who wins the penalty shootout when predicting a draw in a knockout match',
         });
       }
-      resolvedPenaltyWinner = pick;
+      resolvedPenaltyWinner = canonical;
     }
 
     const prediction = await upsertUserPrediction(userId, matchId, {

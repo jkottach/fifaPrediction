@@ -17,6 +17,7 @@ import { formatBracketPlaceholderLabel } from '../utils/knockout';
 import {
   enrichMatchWithTeams,
   isPickableNationTeamId,
+  matchIdsEqual,
   sumPredictionPoints,
   teamMapFromDocs,
   computeUserTotalPoints,
@@ -160,7 +161,7 @@ export async function updatePredictionPointsForMatch(
   const user = await findUserById(userId);
   if (!user) return;
   const predictions = user.predictions.map((p) =>
-    p.matchId === matchId ? { ...p, points } : p
+    matchIdsEqual(p.matchId, matchId) ? { ...p, points } : p
   );
   await updateUserById(userId, {
     predictions,
@@ -172,7 +173,12 @@ export async function updatePredictionPointsForMatch(
 }
 
 export async function findUsersWithPredictionForMatch(matchId: string): Promise<UserDocument[]> {
-  return getUsersCollection().find({ 'predictions.matchId': matchId }).toArray();
+  const oid = toObjectId(matchId);
+  const filters: Filter<UserDocument>[] = [{ 'predictions.matchId': matchId }];
+  if (oid) {
+    filters.push({ 'predictions.matchId': oid as unknown as string });
+  }
+  return getUsersCollection().find(filters.length === 1 ? filters[0] : { $or: filters }).toArray();
 }
 
 export async function findLatestCompletedMatch(): Promise<MatchDocument | null> {

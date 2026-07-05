@@ -18,6 +18,7 @@
     "update:knockout-matches": "tsx scripts/updateKnockoutMatches.ts",
     "backfill:prediction-snapshots": "tsx scripts/backfillPredictionSnapshots.ts",
     "fix:decimal-goal-scores": "tsx scripts/fixDecimalGoalScores.ts",
+    "recalculate:match-points": "tsx scripts/recalculateCompletedMatchPoints.ts",
     "sync:user-total-points": "tsx scripts/syncUserTotalPoints.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
