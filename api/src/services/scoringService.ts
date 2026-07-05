@@ -8,6 +8,7 @@ import {
 import { matchIdsEqual } from '../db/helpers';
 import {
   isKnockoutMatch,
+  usesAdvancerKnockoutScoring,
   normalizeTeamId,
   resolveCanonicalTeamId,
   teamIdsEqual,
@@ -56,8 +57,30 @@ function groupStageOutcome(team1Score: number, team2Score: number): 1 | -1 | 0 {
   return 0;
 }
 
+/**
+ * Legacy Round of 32 knockout scoring: compare W/D/L outcomes.
+ * Penalties only affect outcome when full-time is level.
+ */
+function getFinalOutcome(
+  team1Score: number,
+  team2Score: number,
+  opts?: { isKnockout?: boolean; penaltyWinner?: string | null; team1?: string; team2?: string }
+): 1 | -1 | 0 {
+  if (team1Score > team2Score) return 1;
+  if (team1Score < team2Score) return -1;
+
+  if (opts?.isKnockout && opts.penaltyWinner) {
+    if (opts.penaltyWinner === opts.team1) return 1;
+    if (opts.penaltyWinner === opts.team2) return -1;
+  }
+
+  return 0;
+}
+
 export interface CalculatePointsOptions {
   isKnockout?: boolean;
+  /** Round of 16 through Final use advancer-based knockout scoring; Round of 32 uses legacy outcome scoring. */
+  useAdvancerScoring?: boolean;
   actualPenaltyWinner?: string | null;
   predictedPenaltyWinner?: string | null;
   team1?: string;
@@ -74,22 +97,40 @@ export const calculatePredictionPoints = (
   let points = 0;
 
   if (opts?.isKnockout && opts.team1 && opts.team2) {
-    const predictedWinner = resolveKnockoutWinner(
-      predictedTeam1,
-      predictedTeam2,
-      opts.team1,
-      opts.team2,
-      opts.predictedPenaltyWinner
-    );
-    const actualWinner = resolveKnockoutWinner(
-      actualTeam1,
-      actualTeam2,
-      opts.team1,
-      opts.team2,
-      opts.actualPenaltyWinner
-    );
-    if (predictedWinner && actualWinner && predictedWinner === actualWinner) {
-      points += SCORING.correctResult;
+    if (opts.useAdvancerScoring) {
+      const predictedWinner = resolveKnockoutWinner(
+        predictedTeam1,
+        predictedTeam2,
+        opts.team1,
+        opts.team2,
+        opts.predictedPenaltyWinner
+      );
+      const actualWinner = resolveKnockoutWinner(
+        actualTeam1,
+        actualTeam2,
+        opts.team1,
+        opts.team2,
+        opts.actualPenaltyWinner
+      );
+      if (predictedWinner && actualWinner && predictedWinner === actualWinner) {
+        points += SCORING.correctResult;
+      }
+    } else {
+      const predictedOutcome = getFinalOutcome(predictedTeam1, predictedTeam2, {
+        isKnockout: true,
+        penaltyWinner: opts.predictedPenaltyWinner,
+        team1: opts.team1,
+        team2: opts.team2,
+      });
+      const actualOutcome = getFinalOutcome(actualTeam1, actualTeam2, {
+        isKnockout: true,
+        penaltyWinner: opts.actualPenaltyWinner,
+        team1: opts.team1,
+        team2: opts.team2,
+      });
+      if (predictedOutcome === actualOutcome) {
+        points += SCORING.correctResult;
+      }
     }
   } else {
     const predictedOutcome = groupStageOutcome(predictedTeam1, predictedTeam2);
@@ -125,9 +166,12 @@ export const processMatchResults = async (matchId: string) => {
     const prediction = user.predictions.find((p) => matchIdsEqual(p.matchId, resolvedMatchId));
     if (!prediction) continue;
 
+    const useAdvancerScoring = usesAdvancerKnockoutScoring(match);
     const knockout =
       isKnockoutMatch(match) ||
-      (prediction.team1Score === prediction.team2Score && !!prediction.penaltyWinner?.trim());
+      (useAdvancerScoring &&
+        prediction.team1Score === prediction.team2Score &&
+        !!prediction.penaltyWinner?.trim());
 
     let points = calculatePredictionPoints(
       prediction.team1Score,
@@ -136,6 +180,7 @@ export const processMatchResults = async (matchId: string) => {
       match.team2Score!,
       {
         isKnockout: knockout,
+        useAdvancerScoring,
         actualPenaltyWinner: match.penaltyWinner ?? null,
         predictedPenaltyWinner: prediction.penaltyWinner ?? null,
         team1: match.team1,
@@ -149,7 +194,9 @@ export const processMatchResults = async (matchId: string) => {
       prediction.team1Score === prediction.team2Score &&
       match.penaltyWinner?.trim() &&
       prediction.penaltyWinner?.trim() &&
-      teamIdsEqual(prediction.penaltyWinner, match.penaltyWinner)
+      (useAdvancerScoring
+        ? teamIdsEqual(prediction.penaltyWinner, match.penaltyWinner)
+        : prediction.penaltyWinner === match.penaltyWinner)
     ) {
       points += SCORING.correctPenaltyWinner;
     }

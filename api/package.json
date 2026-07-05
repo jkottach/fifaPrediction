@@ -19,6 +19,7 @@
     "backfill:prediction-snapshots": "tsx scripts/backfillPredictionSnapshots.ts",
     "fix:decimal-goal-scores": "tsx scripts/fixDecimalGoalScores.ts",
     "recalculate:match-points": "tsx scripts/recalculateCompletedMatchPoints.ts",
+    "recalculate:round-of-32-points": "tsx scripts/recalculateRoundOf32Points.ts",
     "sync:user-total-points": "tsx scripts/syncUserTotalPoints.ts",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
