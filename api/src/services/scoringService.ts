@@ -7,7 +7,7 @@ import {
 } from '../db/repositories';
 import { matchIdsEqual } from '../db/helpers';
 import {
-  isKnockoutMatch,
+  isKnockoutRoundForScoring,
   usesAdvancerKnockoutScoring,
   normalizeTeamId,
   resolveCanonicalTeamId,
@@ -31,7 +31,7 @@ const SCORING: ScoringCriteria = {
 };
 
 /** Bump when knockout scoring rules change — exposed on /api/health for deploy verification. */
-export const SCORING_VERSION = 'round-aware-v2';
+export const SCORING_VERSION = 'round-aware-v3';
 
 /**
  * Resolves the team that wins/advances in a knockout match.
@@ -170,11 +170,7 @@ export const processMatchResults = async (matchId: string) => {
     if (!prediction) continue;
 
     const useAdvancerScoring = usesAdvancerKnockoutScoring(match);
-    const knockout =
-      isKnockoutMatch(match) ||
-      (useAdvancerScoring &&
-        prediction.team1Score === prediction.team2Score &&
-        !!prediction.penaltyWinner?.trim());
+    const knockout = isKnockoutRoundForScoring(match);
 
     let points = calculatePredictionPoints(
       prediction.team1Score,

@@ -35,20 +35,40 @@ export function isRoundOf32Match(match: { round?: string; sequence?: number }): 
   return seq != null && seq >= 73 && seq <= 88;
 }
 
-/** Advancer-based knockout scoring from Round of 16 through the Final (M89+). */
-const ADVANCER_SCORING_ROUNDS = new Set([
-  'round of 16',
-  'quarter finals',
-  'semi finals',
-  '3rd place',
-  'final',
-]);
+/** Advancer-based knockout scoring from Round of 16 through the Final (M89–M104). */
+export const ADVANCER_KNOCKOUT_ROUNDS = [
+  'Round of 16',
+  'Quarter Finals',
+  'Semi Finals',
+  '3rd Place',
+  'Final',
+] as const;
+
+const ADVANCER_SCORING_ROUNDS = new Set(
+  ADVANCER_KNOCKOUT_ROUNDS.map((round) => round.toLowerCase())
+);
 
 export function usesAdvancerKnockoutScoring(match: { round?: string; sequence?: number }): boolean {
   const round = String(match.round ?? '').trim().toLowerCase();
   if (ADVANCER_SCORING_ROUNDS.has(round)) return true;
+  if (round.includes('round of 16') || round.includes('quarter') || round.includes('semi') || round === 'final' || round.includes('3rd')) {
+    return true;
+  }
   const seq = match.sequence;
   return seq != null && seq >= 89;
+}
+
+/** Any knockout round (R32 through Final) — uses sequence fallback when round metadata is missing. */
+export function isKnockoutRoundForScoring(match: {
+  round?: string;
+  group?: string | null;
+  sequence?: number;
+}): boolean {
+  if (isKnockoutMatch(match)) return true;
+  if (isRoundOf32Match(match)) return true;
+  if (usesAdvancerKnockoutScoring(match)) return true;
+  const seq = match.sequence;
+  return seq != null && seq >= 73;
 }
 
 /** FIFA nation codes (excludes knockout placeholders like 1A, W73, 3EFGIJ). */

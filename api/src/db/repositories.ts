@@ -159,7 +159,11 @@ export async function updatePredictionPointsForMatch(
 }
 
 export async function findUsersWithPredictionForMatch(matchId: string): Promise<UserDocument[]> {
-  return getUsersCollection().find({ 'predictions.matchId': matchId }).toArray();
+  const oid = toObjectId(matchId);
+  const matchIdFilter = oid
+    ? { $or: [{ 'predictions.matchId': matchId }, { 'predictions.matchId': oid }] }
+    : { 'predictions.matchId': matchId };
+  return getUsersCollection().find(matchIdFilter).toArray();
 }
 
 export async function findLatestCompletedMatch(): Promise<MatchDocument | null> {
