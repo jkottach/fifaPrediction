@@ -30,6 +30,9 @@ const SCORING: ScoringCriteria = {
   correctPenaltyWinner: 5,
 };
 
+/** Bump when knockout scoring rules change — exposed on /api/health for deploy verification. */
+export const SCORING_VERSION = 'round-aware-v2';
+
 /**
  * Resolves the team that wins/advances in a knockout match.
  * Full-time winner if not level; otherwise the penalty shootout winner.

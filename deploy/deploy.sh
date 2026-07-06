@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Pull latest code, build API + frontend, restart pm2 on EC2.
 # Usage (from anywhere on the server):
-#   ./deploy/deploy.sh
-#   DEPLOY_BRANCH=dev ./deploy/deploy.sh
+#   ./deploy/deploy.sh                  # Kanhans prod → main
+#   DEPLOY_BRANCH=diva ./deploy/deploy.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -12,6 +12,8 @@ API_HEALTH_URL="${API_HEALTH_URL:-http://127.0.0.1:5001/api/health}"
 cd "$ROOT"
 
 echo "==> Pulling origin/$BRANCH"
+git fetch origin
+git checkout "$BRANCH"
 git pull origin "$BRANCH"
 
 echo "==> Building API"
@@ -39,7 +41,7 @@ echo "==> Health check ($API_HEALTH_URL)"
 if curl -sf "$API_HEALTH_URL" >/dev/null; then
   curl -s "$API_HEALTH_URL"
   echo
-  echo "Deploy complete."
+  echo "Deploy complete (branch=$BRANCH)."
 else
   echo "Warning: API health check failed. Run: pm2 logs wc26-api --lines 50" >&2
   exit 1

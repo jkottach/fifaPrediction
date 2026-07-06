@@ -7,6 +7,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { applyPreParsedBody, jsonUnlessPreParsed } from './middleware/preParsedBody';
 import { logger } from './lib/logger';
 import { connectMongo, pingMongo } from './lib/mongodb';
+import { SCORING_VERSION } from './services/scoringService';
 
 import authRoutes from './routes/authRoutes';
 import matchRoutes from './routes/matchRoutes';
@@ -68,6 +69,7 @@ export function buildApp(): Express {
       status: ok ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
       runtime: 'express',
+      scoringVersion: SCORING_VERSION,
       mongo,
       google: { configured: googleConfigured },
       jwt: { configured: jwtConfigured },
