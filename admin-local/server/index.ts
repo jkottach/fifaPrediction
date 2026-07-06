@@ -25,6 +25,7 @@ import { computeGroupStandings } from './groupStandings.js';
 import { resolveKnockoutTeams, type ResolvedMatchUpdate } from './knockoutResolver.js';
 import { applySnapshotsAfterMatchFinalized } from './predictionSnapshots.js';
 import { isKnockoutMatch } from './knockout.js';
+import { SCORING_VERSION, scorePredictionForMatch } from './scoringService.js';
 import {
   adminAuthMiddleware,
   loginWithPin,
@@ -191,31 +192,19 @@ async function listMatchesEnriched(
   };
 }
 
-// ── Scoring (same rules as main API) ─────────────────────────────────────────
-
-function calculatePredictionPoints(
-  predictedTeam1: number,
-  predictedTeam2: number,
-  actualTeam1: number,
-  actualTeam2: number
-): number {
-  let points = 0;
-  const predictedDiff = predictedTeam1 - predictedTeam2;
-  const actualDiff = actualTeam1 - actualTeam2;
-
-  if (
-    (predictedDiff > 0 && actualDiff > 0) ||
-    (predictedDiff < 0 && actualDiff < 0) ||
-    (predictedDiff === 0 && actualDiff === 0)
-  ) {
-    points += 5;
-  }
-  if (predictedTeam1 === actualTeam1) points += 2;
-  if (predictedTeam2 === actualTeam2) points += 2;
-  if (Math.abs(predictedDiff) === Math.abs(actualDiff)) points += 1;
-
-  return points;
+function matchIdsEqual(a: unknown, b: unknown): boolean {
+  return String(a) === String(b);
 }
+
+async function findUsersWithPredictionForMatch(db: Db, matchId: string): Promise<UserDocument[]> {
+  const oid = toObjectId(matchId);
+  const filter = oid
+    ? { $or: [{ 'predictions.matchId': matchId }, { 'predictions.matchId': oid as unknown as string }] }
+    : { 'predictions.matchId': matchId };
+  return users(db).find(filter).toArray();
+}
+
+// ── Scoring (synced with main API — see server/scoringService.ts) ─────────────
 
 async function updatePredictionPointsForMatch(
   db: Db,
@@ -230,7 +219,7 @@ async function updatePredictionPointsForMatch(
   if (!user) return;
 
   const nextPredictions = user.predictions.map((p) =>
-    p.matchId === matchId ? { ...p, points } : p
+    matchIdsEqual(p.matchId, matchId) ? { ...p, points } : p
   );
 
   const tournamentPts = user.tournamentPrediction?.points ?? 0;
@@ -246,36 +235,31 @@ async function updatePredictionPointsForMatch(
   );
 }
 
-async function processMatchResults(
-  db: Db,
-  matchId: string,
-  actualTeam1: number,
-  actualTeam2: number,
-  matchPenaltyWinner?: string | null
-) {
-  const withPredictions = await users(db).find({ 'predictions.matchId': matchId }).toArray();
-  const isDraw = actualTeam1 === actualTeam2;
+async function processMatchResults(db: Db, match: MatchDocument) {
+  if (match.team1Score == null || match.team2Score == null) {
+    throw new Error('Match scores not set');
+  }
+
+  const matchId = match._id.toString();
+  const withPredictions = await findUsersWithPredictionForMatch(db, matchId);
 
   for (const user of withPredictions) {
-    const prediction = user.predictions.find((p) => p.matchId === matchId);
+    const prediction = user.predictions.find((p) => matchIdsEqual(p.matchId, matchId));
     if (!prediction) continue;
 
-    let points = calculatePredictionPoints(
-      prediction.team1Score,
-      prediction.team2Score,
-      actualTeam1,
-      actualTeam2
+    const points = scorePredictionForMatch(
+      {
+        round: match.round,
+        group: match.group,
+        sequence: match.sequence,
+        team1: match.team1,
+        team2: match.team2,
+        team1Score: match.team1Score,
+        team2Score: match.team2Score,
+        penaltyWinner: match.penaltyWinner,
+      },
+      prediction
     );
-
-    if (
-      isDraw &&
-      prediction.team1Score === prediction.team2Score &&
-      matchPenaltyWinner &&
-      prediction.penaltyWinner &&
-      prediction.penaltyWinner === matchPenaltyWinner
-    ) {
-      points += 2;
-    }
 
     await updatePredictionPointsForMatch(db, user._id.toString(), matchId, points);
   }
@@ -323,8 +307,6 @@ async function finalizeMatchScores(
     resolvedPenaltyWinner = pick;
   }
 
-  const resolvedId = existing._id.toString();
-
   const result = await matches(db).findOneAndUpdate(
     { _id: existing._id },
     {
@@ -341,7 +323,7 @@ async function finalizeMatchScores(
 
   if (!result) throw new Error('Match not found');
 
-  await processMatchResults(db, resolvedId, team1Score, team2Score, resolvedPenaltyWinner);
+  await processMatchResults(db, result);
   const resolved = await resolveKnockoutTeams(db, matches(db), teams(db));
   return { match: result, resolved };
 }
@@ -357,7 +339,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'admin-local' });
+  res.json({ status: 'ok', service: 'admin-local', scoringVersion: SCORING_VERSION });
 });
 
 app.post('/api/auth/login', (req, res) => {
