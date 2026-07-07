@@ -12,7 +12,7 @@ import type { MatchDocument, UserDocument } from '../src/db/types';
 
 const DATABASES = ['wc26Prod', 'fifaPrediction', 'wc26Diva', 'wc26fcc', 'wcmandrake'];
 
-const SCORING = { correctPenaltyWinner: 5 };
+const SCORING = { correctPenaltyWinner: 2 };
 
 interface Mismatch {
   matchTag: string;

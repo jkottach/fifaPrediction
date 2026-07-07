@@ -5,8 +5,8 @@ export const MATCH_POINTS = {
   correctTeam2Score: 2,
   correctGoalDifference: 1,
   /** Knockout draws only — correct penalty shootout winner */
-  correctPenaltyWinner: 5,
-  maxPerMatch: 15,
+  correctPenaltyWinner: 2,
+  maxPerMatch: 12,
 } as const;
 
 /** Tournament picks (group + knockout) — applied when official results are entered */

@@ -27,11 +27,11 @@ const SCORING: ScoringCriteria = {
   correctTeam1Score: 2,
   correctTeam2Score: 2,
   correctGoalDifference: 1,
-  correctPenaltyWinner: 5,
+  correctPenaltyWinner: 2,
 };
 
 /** Bump when knockout scoring rules change — exposed on /api/health for deploy verification. */
-export const SCORING_VERSION = 'round-aware-v3';
+export const SCORING_VERSION = 'round-aware-v4';
 
 /**
  * Resolves the team that wins/advances in a knockout match.
