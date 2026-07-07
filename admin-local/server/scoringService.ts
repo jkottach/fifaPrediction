@@ -14,10 +14,10 @@ const SCORING = {
   correctTeam1Score: 2,
   correctTeam2Score: 2,
   correctGoalDifference: 1,
-  correctPenaltyWinner: 5,
+  correctPenaltyWinner: 2,
 } as const;
 
-export const SCORING_VERSION = 'round-aware-v3';
+export const SCORING_VERSION = 'round-aware-v4';
 
 function resolveKnockoutWinner(
   team1Score: number,
