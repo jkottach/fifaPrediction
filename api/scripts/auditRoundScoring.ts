@@ -8,7 +8,7 @@ import { calculatePredictionPoints } from '../src/services/scoringService';
 import { isKnockoutMatch, isRoundOf32Match, usesAdvancerKnockoutScoring } from '../src/utils/knockout';
 import type { MatchDocument, UserDocument } from '../src/db/types';
 
-const SCORING = { correctPenaltyWinner: 5 };
+const SCORING = { correctPenaltyWinner: 2 };
 
 function expectedPoints(match: MatchDocument, prediction: UserDocument['predictions'][number]): number {
   const useAdvancerScoring = usesAdvancerKnockoutScoring(match);
