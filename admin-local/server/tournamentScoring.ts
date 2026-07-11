@@ -31,18 +31,18 @@ export function calculateTournamentPredictionPoints(
 ): number {
   let points = 0;
 
-  if (prediction.champion === results.champion) {
+  if (results.champion && prediction.champion === results.champion) {
     points += TOURNAMENT_POINTS.champion;
   }
 
   for (const teamId of results.finalists) {
-    if (prediction.finalists.includes(teamId)) {
+    if (teamId && prediction.finalists.includes(teamId)) {
       points += TOURNAMENT_POINTS.finalist;
     }
   }
 
   for (const teamId of results.semifinalists) {
-    if (prediction.semifinalists.includes(teamId)) {
+    if (teamId && prediction.semifinalists.includes(teamId)) {
       points += TOURNAMENT_POINTS.semifinalist;
     }
   }
@@ -82,6 +82,40 @@ export function validateBracketLogic(
     if (!semifinalists.includes(f)) {
       return 'Both finalists must be chosen from the four semifinalist picks';
     }
+  }
+  return null;
+}
+
+/**
+ * Lenient version of validateBracketLogic for partial ("save as results come in")
+ * brackets: only checks the slots that are actually filled, so an admin can save
+ * one semifinalist without having picked finalists or a champion yet.
+ */
+export function validatePartialBracketLogic(
+  champion: string,
+  finalists: [string, string],
+  semifinalists: [string, string, string, string]
+): string | null {
+  const filledSemis = semifinalists.filter(Boolean);
+  const filledFinalists = finalists.filter(Boolean);
+
+  if (new Set(filledSemis).size !== filledSemis.length) {
+    return 'Each semifinalist must be a different team';
+  }
+  if (new Set(filledFinalists).size !== filledFinalists.length) {
+    return 'Both finalists must be different teams';
+  }
+  // A finalist must be one of the semifinalists — only enforce once all four semis are set.
+  if (filledSemis.length === 4) {
+    for (const f of filledFinalists) {
+      if (!semifinalists.includes(f)) {
+        return 'Both finalists must be chosen from the four semifinalist picks';
+      }
+    }
+  }
+  // Champion must be one of the finalists — only enforce once both finalists are set.
+  if (champion && filledFinalists.length === 2 && !finalists.includes(champion)) {
+    return 'Champion must be one of the two finalists';
   }
   return null;
 }

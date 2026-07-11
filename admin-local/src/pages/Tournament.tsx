@@ -279,7 +279,8 @@ const Tournament: React.FC<TournamentProps> = ({
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
             <h2 className="font-display text-sm font-bold text-slate-900">Knockout bracket</h2>
             <p className="text-xs text-slate-500">
-              4 semifinalists → 2 finalists → champion. Apply when the bracket is complete.
+              4 semifinalists → 2 finalists → champion. Save as results come in — points
+              recalculate for whatever is filled so far.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -343,10 +344,10 @@ const Tournament: React.FC<TournamentProps> = ({
             className="w-full min-h-[48px] rounded-xl bg-emerald-500 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50 transition"
           >
             {submitting
-              ? 'Calculating points…'
+              ? 'Saving…'
               : isAllTenants
-                ? 'Apply knockout scoring to all databases'
-                : 'Apply knockout scoring'}
+                ? 'Save knockout bracket on all databases'
+                : 'Save knockout bracket'}
           </button>
         </div>
       )}

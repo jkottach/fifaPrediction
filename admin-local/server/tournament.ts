@@ -12,7 +12,7 @@ import {
   calculateTournamentPredictionPoints,
   normalizeGroupChampions,
   TOURNAMENT_POINTS,
-  validateBracketLogic,
+  validatePartialBracketLogic,
   type GroupChampionsPicks,
   type TournamentBracketPrediction,
   type TournamentOfficialResults,
@@ -219,23 +219,23 @@ function parseBracketResultsBody(
   existing: TournamentOfficialResults | null
 ): TournamentOfficialResults {
   const champion = String(body.champion ?? '').trim().toUpperCase();
-  const finalists = (Array.isArray(body.finalists) ? body.finalists : []).map((id) =>
-    String(id).trim().toUpperCase()
+  const rawFinalists = Array.isArray(body.finalists) ? body.finalists : [];
+  const finalists = [0, 1].map((i) =>
+    String(rawFinalists[i] ?? '').trim().toUpperCase()
   ) as [string, string];
-  const semifinalists = (Array.isArray(body.semifinalists) ? body.semifinalists : []).map(
-    (id) => String(id).trim().toUpperCase()
+  const rawSemis = Array.isArray(body.semifinalists) ? body.semifinalists : [];
+  const semifinalists = [0, 1, 2, 3].map((i) =>
+    String(rawSemis[i] ?? '').trim().toUpperCase()
   ) as [string, string, string, string];
   const groupChampions = {
     ...(existing?.groupChampions ?? {}),
     ...normalizeGroupChampions((body.groupChampions as GroupChampionsPicks) ?? {}),
   };
 
-  if (finalists.length !== 2 || semifinalists.length !== 4) {
-    throw new Error('finalists (2) and semifinalists (4) are required');
-  }
-  if (!champion) throw new Error('champion is required');
-
-  const logicError = validateBracketLogic(champion, finalists, semifinalists);
+  // Partial saves are allowed: only the filled slots are validated, so an admin
+  // can save results as they come in (e.g. one semifinalist at a time). Points
+  // recalculate for whatever is entered so far.
+  const logicError = validatePartialBracketLogic(champion, finalists, semifinalists);
   if (logicError) throw new Error(logicError);
 
   return { champion, finalists, semifinalists, groupChampions };
