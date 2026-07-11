@@ -8,6 +8,9 @@ export type CommunityTournamentSort = 'points' | 'name' | 'champion';
 interface CommunityTournamentUserListProps {
   picks: CommunityTournamentPick[];
   officialGroupChampions: Record<string, string>;
+  officialSemifinalists?: string[];
+  officialFinalists?: string[];
+  officialChampion?: string;
   currentUserId?: string;
   sort: CommunityTournamentSort;
 }
@@ -22,6 +25,9 @@ const medal = (rank: number) => {
 const CommunityTournamentUserList: React.FC<CommunityTournamentUserListProps> = ({
   picks,
   officialGroupChampions,
+  officialSemifinalists = [],
+  officialFinalists = [],
+  officialChampion = '',
   currentUserId,
   sort,
 }) => {
@@ -123,6 +129,9 @@ const CommunityTournamentUserList: React.FC<CommunityTournamentUserListProps> = 
                   <TournamentPredictionDisplay
                     prediction={pick}
                     officialGroupChampions={officialGroupChampions}
+                    officialSemifinalists={officialSemifinalists}
+                    officialFinalists={officialFinalists}
+                    officialChampion={officialChampion}
                   />
                 </div>
               )}
