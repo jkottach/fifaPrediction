@@ -37,6 +37,9 @@ const MyPredictions: React.FC = () => {
   const [topEarnersLoading, setTopEarnersLoading] = useState(false);
   const [tournamentPrediction, setTournamentPrediction] = useState<TournamentPrediction | null>(null);
   const [officialGroupChampions, setOfficialGroupChampions] = useState<Record<string, string>>({});
+  const [officialSemifinalists, setOfficialSemifinalists] = useState<string[]>([]);
+  const [officialFinalists, setOfficialFinalists] = useState<string[]>([]);
+  const [officialChampion, setOfficialChampion] = useState('');
   const [tournamentLoading, setTournamentLoading] = useState(false);
   const [showTournamentCard, setShowTournamentCard] = useState(false);
 
@@ -53,10 +56,16 @@ const MyPredictions: React.FC = () => {
       const response = await apiService.getTournamentPrediction();
       setTournamentPrediction(response.data?.prediction ?? null);
       setOfficialGroupChampions(response.data?.officialGroupChampions ?? {});
+      setOfficialSemifinalists(response.data?.officialSemifinalists ?? []);
+      setOfficialFinalists(response.data?.officialFinalists ?? []);
+      setOfficialChampion(response.data?.officialChampion ?? '');
     } catch (error) {
       console.error('Failed to fetch tournament prediction:', error);
       setTournamentPrediction(null);
       setOfficialGroupChampions({});
+      setOfficialSemifinalists([]);
+      setOfficialFinalists([]);
+      setOfficialChampion('');
     } finally {
       setTournamentLoading(false);
     }
@@ -328,6 +337,9 @@ const MyPredictions: React.FC = () => {
                   <TournamentPredictionHistoryCard
                     prediction={tournamentPrediction}
                     officialGroupChampions={officialGroupChampions}
+                    officialSemifinalists={officialSemifinalists}
+                    officialFinalists={officialFinalists}
+                    officialChampion={officialChampion}
                   />
                 )}
               </div>

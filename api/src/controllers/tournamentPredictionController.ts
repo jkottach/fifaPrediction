@@ -121,6 +121,9 @@ export const getTournamentPrediction = async (req: AuthRequest, res: Response) =
     ]);
     const groups = await enrichGroupStageForApi(stageGroups);
     const officialGroupChampions = officialResults?.groupChampions ?? {};
+    const officialSemifinalists = officialResults?.semifinalists ?? [];
+    const officialFinalists = officialResults?.finalists ?? [];
+    const officialChampion = officialResults?.champion ?? '';
 
     if (!stored) {
       return res.json({
@@ -163,6 +166,9 @@ export const getTournamentPrediction = async (req: AuthRequest, res: Response) =
       },
       groups,
       officialGroupChampions,
+      officialSemifinalists,
+      officialFinalists,
+      officialChampion,
       deadline: deadline?.toISOString() ?? null,
       isOpen: deadline ? new Date() < deadline : true,
     });
@@ -314,6 +320,9 @@ export const getCommunityTournamentPredictions = async (req: AuthRequest, res: R
     const deadline = resolvePredictionDeadline();
     const officialResults = await loadTournamentOfficialResults();
     const officialGroupChampions = officialResults?.groupChampions ?? {};
+    const officialSemifinalists = officialResults?.semifinalists ?? [];
+    const officialFinalists = officialResults?.finalists ?? [];
+    const officialChampion = officialResults?.champion ?? '';
 
     if (!isTournamentPredictionDeadlinePassed()) {
       const { submittedCount } = await listCommunityTournamentPredictions();
@@ -331,6 +340,9 @@ export const getCommunityTournamentPredictions = async (req: AuthRequest, res: R
     res.json({
       unlocksAt: deadline.toISOString(),
       officialGroupChampions,
+      officialSemifinalists,
+      officialFinalists,
+      officialChampion,
       ...enriched,
     });
   } catch (error) {
@@ -354,6 +366,9 @@ export const getUserTournamentPrediction = async (req: AuthRequest, res: Respons
     const deadline = resolvePredictionDeadline();
     const officialResults = await loadTournamentOfficialResults();
     const officialGroupChampions = officialResults?.groupChampions ?? {};
+    const officialSemifinalists = officialResults?.semifinalists ?? [];
+    const officialFinalists = officialResults?.finalists ?? [];
+    const officialChampion = officialResults?.champion ?? '';
 
     if (!isTournamentPredictionDeadlinePassed() && targetUserId !== requesterId) {
       return res.status(403).json({
@@ -383,6 +398,9 @@ export const getUserTournamentPrediction = async (req: AuthRequest, res: Respons
     res.json({
       name: `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email || 'User',
       officialGroupChampions,
+      officialSemifinalists,
+      officialFinalists,
+      officialChampion,
       prediction: {
         champion: enrichTeam(stored.champion, teamById),
         finalists: stored.finalists.map((id) => enrichTeam(id, teamById)),

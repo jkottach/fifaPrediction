@@ -141,6 +141,9 @@ const CommunityTournamentPicks: React.FC<CommunityTournamentPicksProps> = ({
       <CommunityTournamentUserList
         picks={data.picks}
         officialGroupChampions={data.officialGroupChampions}
+        officialSemifinalists={data.officialSemifinalists}
+        officialFinalists={data.officialFinalists}
+        officialChampion={data.officialChampion}
         currentUserId={currentUserId}
         sort={sort}
       />

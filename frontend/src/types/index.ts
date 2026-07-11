@@ -161,6 +161,9 @@ export interface CommunityTournamentPredictionsResponse {
   unlocksAt: string;
   submittedCount: number;
   officialGroupChampions: Record<string, string>;
+  officialSemifinalists?: string[];
+  officialFinalists?: string[];
+  officialChampion?: string;
   consensus: CommunityTournamentConsensus;
   picks: CommunityTournamentPick[];
 }

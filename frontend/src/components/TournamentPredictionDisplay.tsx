@@ -1,7 +1,12 @@
 import React from 'react';
 import { TOURNAMENT_GROUPS } from '../constants/tournamentTeams';
 import { TournamentPrediction } from '../types';
-import { groupPickBorderClass, groupPickResult } from '../utils/tournamentPicks';
+import {
+  championPickResult,
+  groupPickBorderClass,
+  groupPickResult,
+  knockoutPickResult,
+} from '../utils/tournamentPicks';
 
 const sectionLabel =
   'mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400';
@@ -11,6 +16,9 @@ const teamPill =
 export interface TournamentPredictionDisplayProps {
   prediction: TournamentPrediction;
   officialGroupChampions: Record<string, string>;
+  officialSemifinalists?: string[];
+  officialFinalists?: string[];
+  officialChampion?: string;
   showPoints?: boolean;
   className?: string;
 }
@@ -18,6 +26,9 @@ export interface TournamentPredictionDisplayProps {
 const TournamentPredictionDisplay: React.FC<TournamentPredictionDisplayProps> = ({
   prediction,
   officialGroupChampions,
+  officialSemifinalists = [],
+  officialFinalists = [],
+  officialChampion = '',
   showPoints = true,
   className = '',
 }) => {
@@ -67,28 +78,38 @@ const TournamentPredictionDisplay: React.FC<TournamentPredictionDisplayProps> = 
         <div>
           <p className={sectionLabel}>Semifinalists</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {prediction.semifinalists.map((team, index) => (
-              <div key={`semi-${index}`} className={`${teamPill} border-slate-100 bg-slate-50`}>
-                {team?.teamName ?? '—'}
-              </div>
-            ))}
+            {prediction.semifinalists.map((team, index) => {
+              const result = knockoutPickResult(team?.teamId ?? '', officialSemifinalists, 4);
+              return (
+                <div key={`semi-${index}`} className={`${teamPill} ${groupPickBorderClass(result)}`}>
+                  {team?.teamName ?? '—'}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         <div>
           <p className={sectionLabel}>Finalists</p>
           <div className="grid grid-cols-2 gap-2">
-            {prediction.finalists.map((team, index) => (
-              <div key={`final-${index}`} className={`${teamPill} border-slate-100 bg-slate-50`}>
-                {team?.teamName ?? '—'}
-              </div>
-            ))}
+            {prediction.finalists.map((team, index) => {
+              const result = knockoutPickResult(team?.teamId ?? '', officialFinalists, 2);
+              return (
+                <div key={`final-${index}`} className={`${teamPill} ${groupPickBorderClass(result)}`}>
+                  {team?.teamName ?? '—'}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         <div>
           <p className={sectionLabel}>Champion</p>
-          <div className={`${teamPill} border-slate-100 bg-slate-50`}>
+          <div
+            className={`${teamPill} ${groupPickBorderClass(
+              championPickResult(prediction.champion?.teamId ?? '', officialChampion)
+            )}`}
+          >
             {prediction.champion?.teamName ?? '—'}
           </div>
         </div>
